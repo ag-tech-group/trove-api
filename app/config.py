@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     )
 
     # Database
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/api_template"
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/trove_db"
 
     # Auth
     secret_key: str = "change-me-in-production"

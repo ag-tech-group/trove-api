@@ -1,4 +1,5 @@
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 
@@ -13,9 +14,7 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     - is_active: whether user can authenticate
     - is_superuser: admin privileges
     - is_verified: email verification status
-
-    Add custom fields below if needed, e.g.:
-        display_name: Mapped[str | None] = mapped_column(String(100))
     """
 
-    pass
+    collections = relationship("Collection", back_populates="user", cascade="all, delete-orphan")
+    items = relationship("Item", back_populates="user", cascade="all, delete-orphan")

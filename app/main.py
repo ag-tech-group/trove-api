@@ -3,12 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth import auth_backend, fastapi_users
 from app.config import settings
-from app.routers import racers_router
+from app.routers import categories_router, collections_router, items_router
 from app.schemas.user import UserCreate, UserRead
 
 app = FastAPI(
-    title="API Template",
-    description="FastAPI template with async PostgreSQL and JWT auth",
+    title="Trove API",
+    description="Personal collection management API for tracking antiques, art, and valuables",
     version="0.1.0",
 )
 
@@ -35,13 +35,15 @@ app.include_router(
 # --- End auth routes ---
 
 # API routes
-app.include_router(racers_router)
+app.include_router(collections_router)
+app.include_router(items_router)
+app.include_router(categories_router)
 
 
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {"status": "ok", "message": "API Template"}
+    return {"status": "ok", "message": "Trove API"}
 
 
 @app.get("/health")
