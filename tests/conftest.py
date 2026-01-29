@@ -1,11 +1,14 @@
 from collections.abc import AsyncGenerator
+from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.auth import current_active_user
 from app.database import Base, get_async_session
 from app.main import app
+from app.models import User
 
 # Use SQLite for tests (faster, no external dependencies)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -47,3 +50,45 @@ async def session() -> AsyncGenerator[AsyncSession, None]:
     """Direct database session for test setup."""
     async with async_session_maker() as session:
         yield session
+
+
+@pytest.fixture
+async def test_user(session: AsyncSession) -> User:
+    """Create a test user."""
+    user = User(
+        id=str(uuid4()),
+        email="test@example.com",
+        hashed_password="fakehash",
+        is_active=True,
+        is_superuser=False,
+        is_verified=True,
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+@pytest.fixture
+async def other_user(session: AsyncSession) -> User:
+    """Create another test user for ownership tests."""
+    user = User(
+        id=str(uuid4()),
+        email="other@example.com",
+        hashed_password="fakehash",
+        is_active=True,
+        is_superuser=False,
+        is_verified=True,
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def auth_client(test_user: User):
+    """Override auth dependency to return test user."""
+    app.dependency_overrides[current_active_user] = lambda: test_user
+    yield
+    del app.dependency_overrides[current_active_user]
