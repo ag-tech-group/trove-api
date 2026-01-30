@@ -174,7 +174,7 @@ async def google_callback(
         domain=settings.cookie_domain,
         secure=not settings.is_development,
         httponly=True,
-        samesite="lax",
+        samesite=settings.cookie_samesite,
     )
 
     # Create and set refresh token
