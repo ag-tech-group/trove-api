@@ -38,6 +38,10 @@ class Settings(BaseSettings):
         return self.environment == "development"
 
     @property
+    def cookie_samesite(self) -> str:
+        return "lax" if self.is_development else "none"
+
+    @property
     def cors_origin_list(self) -> list[str]:
         if self.is_development:
             return ["http://localhost:5173"]

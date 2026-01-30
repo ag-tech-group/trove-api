@@ -65,7 +65,7 @@ async def google_authorize(request: Request):
         path="/",
         httponly=True,
         secure=not settings.is_development,
-        samesite="lax",
+        samesite=settings.cookie_samesite,
     )
     return response
 
