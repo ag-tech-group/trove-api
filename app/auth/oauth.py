@@ -9,7 +9,7 @@ from httpx_oauth.clients.google import GoogleOAuth2
 from app.auth.backend import ACCESS_TOKEN_LIFETIME, get_jwt_strategy
 from app.auth.refresh import create_refresh_token, set_refresh_cookie
 from app.auth.security_logging import SecurityEvent, log_security_event
-from app.auth.users import get_user_manager, UserManager
+from app.auth.users import UserManager, get_user_manager
 from app.config import settings
 from app.database import async_session_maker
 
@@ -30,7 +30,7 @@ def _get_callback_url(request: Request) -> str:
     """Build the OAuth callback URL, respecting reverse proxy headers."""
     url = str(request.url_for("google_callback"))
     if not settings.is_development and url.startswith("http://"):
-        url = "https://" + url[len("http://"):]
+        url = "https://" + url[len("http://") :]
     return url
 
 

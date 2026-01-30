@@ -55,7 +55,8 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, UUID]):
                 set_refresh_cookie(response, refresh_jwt)
 
     async def authenticate(
-        self, credentials: OAuth2PasswordRequestForm,
+        self,
+        credentials: OAuth2PasswordRequestForm,
     ) -> models.UP | None:
         user = await super().authenticate(credentials)
         if user is None:

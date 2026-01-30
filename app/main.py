@@ -56,6 +56,7 @@ app.include_router(google_oauth_router)
 async def get_current_user(user: User = Depends(current_active_user)):
     return user
 
+
 # Path-specific rate limits for auth endpoints
 _AUTH_RATE_LIMITS: dict[str, RateLimitItem] = {
     "/auth/jwt/login": parse("5/minute"),

@@ -52,9 +52,7 @@ class Settings(BaseSettings):
                     "SECRET_KEY must be a strong random value in production (min 32 chars)"
                 )
             if "postgres:postgres@" in self.database_url:
-                raise ValueError(
-                    "Default database credentials must not be used in production"
-                )
+                raise ValueError("Default database credentials must not be used in production")
         return self
 
 
