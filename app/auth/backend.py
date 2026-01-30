@@ -11,7 +11,7 @@ cookie_transport = CookieTransport(
     cookie_domain=settings.cookie_domain,
     cookie_secure=not settings.is_development,
     cookie_httponly=True,
-    cookie_samesite="lax",
+    cookie_samesite=settings.cookie_samesite,
 )
 
 

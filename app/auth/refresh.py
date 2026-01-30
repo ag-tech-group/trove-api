@@ -104,7 +104,7 @@ def set_refresh_cookie(response: Response, jwt: str) -> None:
         domain=settings.cookie_domain,
         secure=not settings.is_development,
         httponly=True,
-        samesite="strict",
+        samesite=settings.cookie_samesite,
     )
 
 
@@ -115,7 +115,7 @@ def clear_refresh_cookie(response: Response) -> None:
         domain=settings.cookie_domain,
         secure=not settings.is_development,
         httponly=True,
-        samesite="strict",
+        samesite=settings.cookie_samesite,
     )
 
 
