@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     # CORS — comma-separated origins, e.g. "https://trove.app,https://www.trove.app"
     cors_origins: str = ""
 
+    # Google OAuth
+    google_client_id: str = ""
+    google_client_secret: str = ""
+
+    # Frontend URL (for OAuth redirect after callback)
+    frontend_url: str = "http://localhost:5173"
+
     # Cookie auth
     cookie_domain: str | None = None
 

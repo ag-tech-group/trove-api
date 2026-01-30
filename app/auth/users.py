@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import Depends, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, models
-from fastapi_users.db import SQLAlchemyUserDatabase
+from fastapi_users_db_sqlalchemy import SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.backend import auth_backend
@@ -13,6 +13,7 @@ from app.auth.refresh import create_refresh_token, set_refresh_cookie
 from app.auth.security_logging import SecurityEvent, log_security_event
 from app.config import settings
 from app.database import async_session_maker, get_async_session
+from app.models.oauth_account import OAuthAccount
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 async def get_user_db(
     session: AsyncSession = Depends(get_async_session),
 ) -> AsyncGenerator[SQLAlchemyUserDatabase, None]:
-    yield SQLAlchemyUserDatabase(session, User)
+    yield SQLAlchemyUserDatabase(session, User, OAuthAccount)
 
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, UUID]):
