@@ -26,6 +26,14 @@ google_oauth_client = GoogleOAuth2(
 google_oauth_router = APIRouter(prefix="/auth/google", tags=["auth"])
 
 
+def _get_callback_url(request: Request) -> str:
+    """Build the OAuth callback URL, respecting reverse proxy headers."""
+    url = str(request.url_for("google_callback"))
+    if not settings.is_development and url.startswith("http://"):
+        url = "https://" + url[len("http://"):]
+    return url
+
+
 def _login_redirect(error: str | None = None) -> RedirectResponse:
     """Build a redirect to the frontend login page, optionally with an error."""
     url = f"{settings.frontend_url}/login"
@@ -41,7 +49,7 @@ async def google_authorize(request: Request):
         return _login_redirect(error="oauth_not_configured")
 
     state = secrets.token_urlsafe(32)
-    callback_url = str(request.url_for("google_callback"))
+    callback_url = _get_callback_url(request)
 
     authorization_url = await google_oauth_client.get_authorization_url(
         redirect_uri=callback_url,
@@ -102,7 +110,7 @@ async def google_callback(
 
     # Exchange authorization code for access token
     try:
-        callback_url = str(request.url_for("google_callback"))
+        callback_url = _get_callback_url(request)
         oauth2_token = await google_oauth_client.get_access_token(
             code=code,
             redirect_uri=callback_url,
