@@ -12,11 +12,18 @@ from app.schemas.item import ItemCreate, ItemRead, ItemUpdate
 router = APIRouter(prefix="/items", tags=["items"])
 
 
+def _escape_like(value: str) -> str:
+    """Escape LIKE wildcard characters so they are matched literally."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 @router.get("", response_model=list[ItemRead])
 async def list_items(
     collection_id: UUID | None = Query(default=None, description="Filter by collection"),
     category: str | None = Query(default=None, description="Filter by category"),
-    search: str | None = Query(default=None, description="Search in name and description"),
+    search: str | None = Query(
+        default=None, max_length=200, description="Search in name and description"
+    ),
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
@@ -30,11 +37,12 @@ async def list_items(
         stmt = stmt.where(Item.category == category)
 
     if search is not None:
-        search_term = f"%{search}%"
+        escaped = _escape_like(search)
+        search_term = f"%{escaped}%"
         stmt = stmt.where(
             or_(
-                Item.name.ilike(search_term),
-                Item.description.ilike(search_term),
+                Item.name.ilike(search_term, escape="\\"),
+                Item.description.ilike(search_term, escape="\\"),
             )
         )
 
