@@ -7,6 +7,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.auth import auth_backend, current_active_user, fastapi_users
+from app.auth.oauth import google_oauth_router
 from app.auth.security_logging import SecurityEvent, log_security_event
 from app.config import settings
 from app.models.user import User
@@ -47,6 +48,7 @@ app.include_router(
     prefix="/auth",
     tags=["auth"],
 )
+app.include_router(google_oauth_router)
 # --- End auth routes ---
 
 
@@ -59,14 +61,20 @@ _AUTH_RATE_LIMITS: dict[str, RateLimitItem] = {
     "/auth/jwt/login": parse("5/minute"),
     "/auth/register": parse("3/minute"),
     "/auth/refresh": parse("30/minute"),
+    "/auth/google/authorize": parse("10/minute"),
+    "/auth/google/callback": parse("10/minute"),
 }
+
+# OAuth endpoints use GET instead of POST
+_OAUTH_PATHS = {"/auth/google/authorize", "/auth/google/callback"}
 
 
 @app.middleware("http")
 async def rate_limit_auth(request: Request, call_next) -> Response:
     """Apply rate limits to auth endpoints."""
     rate_limit = _AUTH_RATE_LIMITS.get(request.url.path)
-    if rate_limit and request.method == "POST":
+    is_oauth = request.url.path in _OAUTH_PATHS
+    if rate_limit and (request.method == "POST" or is_oauth):
         key = get_remote_address(request)
         if not limiter._limiter.hit(rate_limit, key):
             log_security_event(

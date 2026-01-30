@@ -1,4 +1,4 @@
-from fastapi_users.db import SQLAlchemyBaseUserTableUUID
+from fastapi_users_db_sqlalchemy import SQLAlchemyBaseUserTableUUID
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -16,5 +16,6 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     - is_verified: email verification status
     """
 
+    oauth_accounts = relationship("OAuthAccount", lazy="joined")
     collections = relationship("Collection", back_populates="user", cascade="all, delete-orphan")
     items = relationship("Item", back_populates="user", cascade="all, delete-orphan")
