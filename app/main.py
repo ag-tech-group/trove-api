@@ -17,7 +17,7 @@ from app.schemas.user import UserCreate, UserRead
 app = FastAPI(
     title="Trove API",
     description="Personal collection management API for tracking antiques, art, and valuables",
-    version="0.1.0",
+    version="0.2.0",
 )
 
 # CORS configuration

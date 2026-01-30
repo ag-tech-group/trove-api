@@ -1,7 +1,7 @@
 [project]
-name = "api-template"
-version = "0.1.0"
-description = "FastAPI template with async PostgreSQL and JWT auth"
+name = "trove-api"
+version = "0.2.0"
+description = "Trove API — personal collection management backend"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
