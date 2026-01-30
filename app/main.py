@@ -1,5 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from limits import RateLimitItem, parse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from app.auth import auth_backend, fastapi_users
 from app.config import settings
@@ -12,16 +17,21 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORS configuration - adjust origins for production
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.is_development else [],  # Configure for production
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
-# --- Auth routes (remove this section if you don't need authentication) ---
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# --- Auth routes ---
 app.include_router(
     fastapi_users.get_auth_router(auth_backend),
     prefix="/auth/jwt",
@@ -33,6 +43,27 @@ app.include_router(
     tags=["auth"],
 )
 # --- End auth routes ---
+
+# Path-specific rate limits for auth endpoints
+_AUTH_RATE_LIMITS: dict[str, RateLimitItem] = {
+    "/auth/jwt/login": parse("5/minute"),
+    "/auth/register": parse("3/minute"),
+}
+
+
+@app.middleware("http")
+async def rate_limit_auth(request: Request, call_next) -> Response:
+    """Apply rate limits to auth endpoints."""
+    rate_limit = _AUTH_RATE_LIMITS.get(request.url.path)
+    if rate_limit and request.method == "POST":
+        key = get_remote_address(request)
+        if not limiter._limiter.hit(rate_limit, key):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded"},
+            )
+    return await call_next(request)
+
 
 # API routes
 app.include_router(collections_router)
