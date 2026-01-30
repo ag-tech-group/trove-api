@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,9 +20,32 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "development"
 
+    # CORS — comma-separated origins, e.g. "https://trove.app,https://www.trove.app"
+    cors_origins: str = ""
+
     @property
     def is_development(self) -> bool:
         return self.environment == "development"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        if self.is_development:
+            return ["*"]
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        if not self.is_development:
+            weak_secrets = {"change-me-in-production", "dev-secret-key-change-in-production", ""}
+            if self.secret_key in weak_secrets or len(self.secret_key) < 32:
+                raise ValueError(
+                    "SECRET_KEY must be a strong random value in production (min 32 chars)"
+                )
+            if "postgres:postgres@" in self.database_url:
+                raise ValueError(
+                    "Default database credentials must not be used in production"
+                )
+        return self
 
 
 settings = Settings()
