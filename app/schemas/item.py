@@ -21,7 +21,7 @@ class ItemBase(BaseModel):
 
     # Basic Info
     name: str = Field(..., max_length=200)
-    description: str | None = Field(default=None)
+    description: str | None = Field(default=None, max_length=5000)
     category: str | None = Field(default=None, max_length=100)
     condition: Condition | None = Field(default=None)
     location: str | None = Field(default=None, max_length=200)
@@ -35,7 +35,7 @@ class ItemBase(BaseModel):
     artist_maker: str | None = Field(default=None, max_length=200)
     origin: str | None = Field(default=None, max_length=200)
     date_era: str | None = Field(default=None, max_length=100)
-    provenance_notes: str | None = Field(default=None)
+    provenance_notes: str | None = Field(default=None, max_length=5000)
 
     # Physical Details
     height_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
@@ -45,7 +45,7 @@ class ItemBase(BaseModel):
     materials: str | None = Field(default=None, max_length=500)
 
     # Metadata
-    notes: str | None = Field(default=None)
+    notes: str | None = Field(default=None, max_length=5000)
 
 
 class ItemCreate(ItemBase):
@@ -59,7 +59,7 @@ class ItemUpdate(BaseModel):
 
     # Basic Info
     name: str | None = Field(default=None, max_length=200)
-    description: str | None = Field(default=None)
+    description: str | None = Field(default=None, max_length=5000)
     category: str | None = Field(default=None, max_length=100)
     condition: Condition | None = Field(default=None)
     location: str | None = Field(default=None, max_length=200)
@@ -76,7 +76,7 @@ class ItemUpdate(BaseModel):
     artist_maker: str | None = Field(default=None, max_length=200)
     origin: str | None = Field(default=None, max_length=200)
     date_era: str | None = Field(default=None, max_length=100)
-    provenance_notes: str | None = Field(default=None)
+    provenance_notes: str | None = Field(default=None, max_length=5000)
 
     # Physical Details
     height_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
@@ -86,7 +86,7 @@ class ItemUpdate(BaseModel):
     materials: str | None = Field(default=None, max_length=500)
 
     # Metadata
-    notes: str | None = Field(default=None)
+    notes: str | None = Field(default=None, max_length=5000)
 
 
 class ItemRead(ItemBase):
