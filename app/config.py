@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # CORS — comma-separated origins, e.g. "https://trove.app,https://www.trove.app"
     cors_origins: str = ""
 
+    # Cookie auth
+    cookie_domain: str | None = None
+
     @property
     def is_development(self) -> bool:
         return self.environment == "development"
@@ -30,7 +33,7 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         if self.is_development:
-            return ["*"]
+            return ["http://localhost:5173"]
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @model_validator(mode="after")
