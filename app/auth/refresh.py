@@ -67,9 +67,7 @@ async def validate_and_rotate_refresh_token(
         return None
 
     # Look up the token in DB
-    result = await session.execute(
-        select(RefreshToken).where(RefreshToken.id == uuid.UUID(jti))
-    )
+    result = await session.execute(select(RefreshToken).where(RefreshToken.id == uuid.UUID(jti)))
     db_token = result.scalar_one_or_none()
 
     if db_token is None:
@@ -78,9 +76,7 @@ async def validate_and_rotate_refresh_token(
     # If revoked, this is a reuse — revoke the entire family (theft detection)
     if db_token.is_revoked:
         await session.execute(
-            update(RefreshToken)
-            .where(RefreshToken.token_family == family)
-            .values(is_revoked=True)
+            update(RefreshToken).where(RefreshToken.token_family == family).values(is_revoked=True)
         )
         await session.commit()
         return None
@@ -126,8 +122,7 @@ def clear_refresh_cookie(response: Response) -> None:
 async def cleanup_expired_tokens(session: AsyncSession) -> int:
     result = await session.execute(
         select(RefreshToken).where(
-            (RefreshToken.expires_at < datetime.now(UTC))
-            | (RefreshToken.is_revoked == True)  # noqa: E712
+            (RefreshToken.expires_at < datetime.now(UTC)) | (RefreshToken.is_revoked == True)  # noqa: E712
         )
     )
     tokens = result.scalars().all()
