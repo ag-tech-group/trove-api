@@ -1,4 +1,14 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset=".github/assets/logo-light.png">
+  <img alt="AG Technology Group" src=".github/assets/logo-light.png" width="200">
+</picture>
+
 # Trove API
+
+[![CI](https://github.com/ag-tech-group/trove-api/actions/workflows/ci.yml/badge.svg)](https://github.com/ag-tech-group/trove-api/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-%3E%3D3.12-blue.svg)](https://www.python.org/)
 
 Personal collection management API for tracking antiques, art, and valuables.
 
