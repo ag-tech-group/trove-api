@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         if self.is_development:
-            return ["http://localhost:5173"]
+            return [f"http://localhost:{p}" for p in range(5100, 5200)]
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @model_validator(mode="after")
