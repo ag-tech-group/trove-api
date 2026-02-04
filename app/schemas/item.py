@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -48,6 +49,9 @@ class ItemBase(BaseModel):
     weight_kg: Decimal | None = Field(default=None, ge=0, decimal_places=3)
     materials: str | None = Field(default=None, max_length=500)
 
+    # Type-specific fields
+    type_fields: dict[str, Any] | None = Field(default=None)
+
 
 class ItemCreate(ItemBase):
     """Schema for creating an Item."""
@@ -88,6 +92,9 @@ class ItemUpdate(BaseModel):
     depth_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     weight_kg: Decimal | None = Field(default=None, ge=0, decimal_places=3)
     materials: str | None = Field(default=None, max_length=500)
+
+    # Type-specific fields
+    type_fields: dict[str, Any] | None = Field(default=None)
 
 
 class ItemRead(ItemBase):

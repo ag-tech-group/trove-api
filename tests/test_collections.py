@@ -184,6 +184,97 @@ async def test_delete_collection_items_become_uncategorized(
 
 
 @pytest.mark.asyncio
+async def test_create_collection_default_type(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that collections default to 'general' type."""
+    response = await client.post(
+        "/collections",
+        json={"name": "My Collection"},
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["type"] == "general"
+
+
+@pytest.mark.asyncio
+async def test_create_collection_with_type(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test creating a collection with a specific type."""
+    response = await client.post(
+        "/collections",
+        json={"name": "My Stamps", "type": "stamp"},
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["type"] == "stamp"
+
+
+@pytest.mark.asyncio
+async def test_create_collection_invalid_type(client: AsyncClient, test_user: User, auth_client):
+    """Test that creating a collection with unknown type returns 422."""
+    response = await client.post(
+        "/collections",
+        json={"name": "Bad Collection", "type": "unknown_type"},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_collection_type(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test updating a collection's type."""
+    collection = Collection(user_id=str(test_user.id), name="My Collection")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    response = await client.patch(
+        f"/collections/{collection.id}",
+        json={"type": "stamp"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["type"] == "stamp"
+    assert data["name"] == "My Collection"  # Unchanged
+
+
+@pytest.mark.asyncio
+async def test_update_collection_invalid_type(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that updating to an unknown type returns 422."""
+    collection = Collection(user_id=str(test_user.id), name="My Collection")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    response = await client.patch(
+        f"/collections/{collection.id}",
+        json={"type": "nonexistent"},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_list_collections_includes_type(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that listing collections includes the type field."""
+    collection = Collection(user_id=str(test_user.id), name="Stamps", type="stamp")
+    session.add(collection)
+    await session.commit()
+
+    response = await client.get("/collections")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["type"] == "stamp"
+
+
+@pytest.mark.asyncio
 async def test_collections_isolation(
     client: AsyncClient, session: AsyncSession, test_user: User, other_user: User, auth_client
 ):

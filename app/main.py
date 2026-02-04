@@ -12,6 +12,7 @@ from app.auth.security_logging import SecurityEvent, log_security_event
 from app.config import settings
 from app.models.user import User
 from app.routers import (
+    collection_types_router,
     collections_router,
     item_notes_router,
     items_router,
@@ -110,6 +111,7 @@ async def add_security_headers(request: Request, call_next) -> Response:
 
 
 # API routes
+app.include_router(collection_types_router)
 app.include_router(collections_router)
 app.include_router(items_router)
 app.include_router(tags_router)

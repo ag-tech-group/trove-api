@@ -8,6 +8,7 @@ from app.auth import current_active_user
 from app.database import get_async_session
 from app.models import Collection, Item, Tag, User
 from app.schemas.item import ItemCreate, ItemRead, ItemUpdate
+from app.type_registry import validate_type_fields
 
 router = APIRouter(prefix="/items", tags=["items"])
 
@@ -100,13 +101,15 @@ async def create_item(
 ):
     """Create a new item."""
     # Verify collection belongs to user if provided
+    collection = None
     if data.collection_id is not None:
         stmt = select(Collection).where(
             Collection.id == str(data.collection_id),
             Collection.user_id == str(user.id),
         )
         result = await session.execute(stmt)
-        if not result.scalar_one_or_none():
+        collection = result.scalar_one_or_none()
+        if not collection:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Collection not found",
@@ -120,6 +123,12 @@ async def create_item(
         item_data["collection_id"] = str(item_data["collection_id"])
     if item_data.get("condition"):
         item_data["condition"] = item_data["condition"].value
+
+    # Validate type_fields against the collection's type
+    if item_data.get("type_fields") and collection:
+        item_data["type_fields"] = validate_type_fields(collection.type, item_data["type_fields"])
+    elif item_data.get("type_fields") and not collection:
+        item_data["type_fields"] = None
 
     item = Item(
         user_id=str(user.id),
@@ -180,6 +189,21 @@ async def update_item(
     # Convert condition enum to string value
     if "condition" in update_data and update_data["condition"] is not None:
         update_data["condition"] = update_data["condition"].value
+
+    # Validate type_fields against the item's collection type
+    if "type_fields" in update_data and update_data["type_fields"] is not None:
+        if item.collection_id:
+            stmt = select(Collection).where(Collection.id == item.collection_id)
+            result = await session.execute(stmt)
+            collection = result.scalar_one_or_none()
+            if collection:
+                update_data["type_fields"] = validate_type_fields(
+                    collection.type, update_data["type_fields"]
+                )
+            else:
+                update_data["type_fields"] = None
+        else:
+            update_data["type_fields"] = None
 
     for field, value in update_data.items():
         setattr(item, field, value)

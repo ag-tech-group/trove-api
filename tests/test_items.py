@@ -436,6 +436,134 @@ async def test_delete_item(
 
 
 @pytest.mark.asyncio
+async def test_create_item_with_type_fields(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test creating an item with type_fields in a stamp collection."""
+    collection = Collection(user_id=str(test_user.id), name="Stamps", type="stamp")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    response = await client.post(
+        "/items",
+        json={
+            "name": "Penny Black",
+            "collection_id": collection.id,
+            "type_fields": {
+                "denomination": "1 Penny",
+                "color": "Black",
+                "mint_status": "used",
+                "country_of_issue": "United Kingdom",
+            },
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["type_fields"]["denomination"] == "1 Penny"
+    assert data["type_fields"]["color"] == "Black"
+    assert data["type_fields"]["mint_status"] == "used"
+    assert data["type_fields"]["country_of_issue"] == "United Kingdom"
+
+
+@pytest.mark.asyncio
+async def test_type_fields_strips_unknown(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that unknown type_fields are stripped."""
+    collection = Collection(user_id=str(test_user.id), name="Stamps", type="stamp")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    response = await client.post(
+        "/items",
+        json={
+            "name": "Test Stamp",
+            "collection_id": collection.id,
+            "type_fields": {
+                "denomination": "5 Cents",
+                "fake_field": "should be stripped",
+                "another_fake": "also stripped",
+            },
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["type_fields"]["denomination"] == "5 Cents"
+    assert "fake_field" not in data["type_fields"]
+    assert "another_fake" not in data["type_fields"]
+
+
+@pytest.mark.asyncio
+async def test_type_fields_null_for_general(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that type_fields is null for items in general collections."""
+    collection = Collection(user_id=str(test_user.id), name="General Stuff")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    response = await client.post(
+        "/items",
+        json={
+            "name": "Some Item",
+            "collection_id": collection.id,
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["type_fields"] is None
+
+
+@pytest.mark.asyncio
+async def test_type_fields_null_without_collection(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that type_fields is nulled when item has no collection."""
+    response = await client.post(
+        "/items",
+        json={
+            "name": "Orphan Item",
+            "type_fields": {"denomination": "should be ignored"},
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["type_fields"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_item_type_fields(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test updating an item's type_fields."""
+    collection = Collection(user_id=str(test_user.id), name="Stamps", type="stamp")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    item = Item(
+        user_id=str(test_user.id),
+        collection_id=collection.id,
+        name="Stamp",
+    )
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+
+    response = await client.patch(
+        f"/items/{item.id}",
+        json={"type_fields": {"denomination": "2 Cents", "color": "Red"}},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["type_fields"]["denomination"] == "2 Cents"
+    assert data["type_fields"]["color"] == "Red"
+
+
+@pytest.mark.asyncio
 async def test_items_isolation(
     client: AsyncClient, session: AsyncSession, test_user: User, other_user: User, auth_client
 ):
