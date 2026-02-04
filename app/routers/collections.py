@@ -40,6 +40,7 @@ async def list_collections(
             user_id=row.Collection.user_id,
             name=row.Collection.name,
             description=row.Collection.description,
+            type=row.Collection.type,
             created_at=row.Collection.created_at,
             updated_at=row.Collection.updated_at,
             item_count=row.item_count,
@@ -75,6 +76,7 @@ async def get_collection(
         user_id=row.Collection.user_id,
         name=row.Collection.name,
         description=row.Collection.description,
+        type=row.Collection.type,
         created_at=row.Collection.created_at,
         updated_at=row.Collection.updated_at,
         item_count=row.item_count,
@@ -92,6 +94,7 @@ async def create_collection(
         user_id=str(user.id),
         name=data.name,
         description=data.description,
+        type=data.type,
     )
     session.add(collection)
     await session.commit()

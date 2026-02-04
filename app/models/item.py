@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -56,6 +56,9 @@ class Item(Base):
     depth_cm: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(10, 3), nullable=True)
     materials: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Type-specific fields
+    type_fields: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Metadata
     created_at: Mapped[datetime] = mapped_column(

@@ -1,7 +1,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.type_registry import COLLECTION_TYPES
 
 
 class CollectionBase(BaseModel):
@@ -9,6 +11,14 @@ class CollectionBase(BaseModel):
 
     name: str = Field(..., max_length=200)
     description: str | None = Field(default=None, max_length=2000)
+    type: str = Field(default="general", max_length=50)
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        if v not in COLLECTION_TYPES:
+            raise ValueError(f"Unknown collection type: {v}")
+        return v
 
 
 class CollectionCreate(CollectionBase):
@@ -22,6 +32,14 @@ class CollectionUpdate(BaseModel):
 
     name: str | None = Field(default=None, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
+    type: str | None = Field(default=None, max_length=50)
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str | None) -> str | None:
+        if v is not None and v not in COLLECTION_TYPES:
+            raise ValueError(f"Unknown collection type: {v}")
+        return v
 
 
 class CollectionRead(CollectionBase):
