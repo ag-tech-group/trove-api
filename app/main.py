@@ -11,7 +11,7 @@ from app.auth.oauth import google_oauth_router
 from app.auth.security_logging import SecurityEvent, log_security_event
 from app.config import settings
 from app.models.user import User
-from app.routers import categories_router, collections_router, items_router
+from app.routers import collections_router, items_router, tags_router
 from app.routers.auth_refresh import router as auth_refresh_router
 from app.schemas.user import UserCreate, UserRead
 
@@ -105,7 +105,7 @@ async def add_security_headers(request: Request, call_next) -> Response:
 # API routes
 app.include_router(collections_router)
 app.include_router(items_router)
-app.include_router(categories_router)
+app.include_router(tags_router)
 
 
 @app.get("/")

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import current_active_user
 from app.database import get_async_session
-from app.models import Collection, Item, User
+from app.models import Collection, Item, Tag, User
 from app.schemas.item import ItemCreate, ItemRead, ItemUpdate
 
 router = APIRouter(prefix="/items", tags=["items"])
@@ -17,10 +17,28 @@ def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+async def _resolve_tags(tag_ids: list[UUID], user_id: str, session: AsyncSession) -> list:
+    """Resolve tag UUIDs to Tag objects, verifying user ownership."""
+    if not tag_ids:
+        return []
+    stmt = select(Tag).where(
+        Tag.id.in_([str(tid) for tid in tag_ids]),
+        Tag.user_id == user_id,
+    )
+    result = await session.execute(stmt)
+    tags = result.scalars().all()
+    if len(tags) != len(tag_ids):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="One or more tags not found",
+        )
+    return list(tags)
+
+
 @router.get("", response_model=list[ItemRead])
 async def list_items(
     collection_id: UUID | None = Query(default=None, description="Filter by collection"),
-    category: str | None = Query(default=None, description="Filter by category"),
+    tag: str | None = Query(default=None, description="Filter by tag name"),
     search: str | None = Query(
         default=None, max_length=200, description="Search in name and description"
     ),
@@ -33,8 +51,8 @@ async def list_items(
     if collection_id is not None:
         stmt = stmt.where(Item.collection_id == str(collection_id))
 
-    if category is not None:
-        stmt = stmt.where(Item.category == category)
+    if tag is not None:
+        stmt = stmt.where(Item.tags.any(Tag.name == tag))
 
     if search is not None:
         escaped = _escape_like(search)
@@ -48,7 +66,7 @@ async def list_items(
 
     stmt = stmt.order_by(Item.created_at.desc())
     result = await session.execute(stmt)
-    return result.scalars().all()
+    return result.unique().scalars().all()
 
 
 @router.get("/{item_id}", response_model=ItemRead)
@@ -94,7 +112,10 @@ async def create_item(
                 detail="Collection not found",
             )
 
-    item_data = data.model_dump()
+    # Resolve tags
+    tags = await _resolve_tags(data.tag_ids, str(user.id), session)
+
+    item_data = data.model_dump(exclude={"tag_ids"})
     if item_data.get("collection_id"):
         item_data["collection_id"] = str(item_data["collection_id"])
     if item_data.get("condition"):
@@ -104,6 +125,7 @@ async def create_item(
         user_id=str(user.id),
         **item_data,
     )
+    item.tags = tags
     session.add(item)
     await session.commit()
     await session.refresh(item)
@@ -132,6 +154,14 @@ async def update_item(
         )
 
     update_data = data.model_dump(exclude_unset=True)
+
+    # Handle tags separately
+    if "tag_ids" in update_data:
+        tag_ids = update_data.pop("tag_ids")
+        if tag_ids is not None:
+            item.tags = await _resolve_tags(tag_ids, str(user.id), session)
+        else:
+            item.tags = []
 
     # Verify collection belongs to user if being updated
     if "collection_id" in update_data and update_data["collection_id"] is not None:
