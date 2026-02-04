@@ -160,20 +160,23 @@ async def test_create_item_with_all_fields(client: AsyncClient, test_user: User,
             "artist_maker": "Unknown Artist",
             "origin": "France",
             "date_era": "19th Century",
-            "provenance_notes": "Purchased at auction",
+            "acquisition_source": "Auction house",
             "height_cm": "45.50",
             "width_cm": "30.00",
             "depth_cm": "15.00",
             "weight_kg": "5.500",
             "materials": "Oil on canvas, gilt frame",
-            "notes": "Some restoration needed",
         },
     )
     assert response.status_code == 201
     data = response.json()
     assert data["name"] == "Complete Item"
     assert data["acquisition_price"] == "1500.00"
+    assert data["acquisition_source"] == "Auction house"
     assert data["height_cm"] == "45.50"
+    assert data["marks"] == []
+    assert data["provenance_entries"] == []
+    assert data["item_notes"] == []
 
 
 @pytest.mark.asyncio
