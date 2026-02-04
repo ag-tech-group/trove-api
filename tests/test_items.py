@@ -2,7 +2,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Collection, Item, User
+from app.models import Collection, Item, Tag, User
 
 
 @pytest.mark.asyncio
@@ -15,7 +15,6 @@ async def test_create_item(
         json={
             "name": "Vintage Clock",
             "description": "A beautiful antique clock",
-            "category": "Clock/Watch",
             "condition": "good",
         },
     )
@@ -23,9 +22,69 @@ async def test_create_item(
     data = response.json()
     assert data["name"] == "Vintage Clock"
     assert data["description"] == "A beautiful antique clock"
-    assert data["category"] == "Clock/Watch"
     assert data["condition"] == "good"
     assert data["user_id"] == str(test_user.id)
+    assert data["tags"] == []
+
+
+@pytest.mark.asyncio
+async def test_create_item_with_tags(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test creating an item with tags."""
+    tag1 = Tag(user_id=str(test_user.id), name="Art")
+    tag2 = Tag(user_id=str(test_user.id), name="Vintage")
+    session.add_all([tag1, tag2])
+    await session.commit()
+    await session.refresh(tag1)
+    await session.refresh(tag2)
+
+    response = await client.post(
+        "/items",
+        json={
+            "name": "Old Painting",
+            "tag_ids": [tag1.id, tag2.id],
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    tag_names = sorted(t["name"] for t in data["tags"])
+    assert tag_names == ["Art", "Vintage"]
+
+
+@pytest.mark.asyncio
+async def test_create_item_with_invalid_tag(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test creating an item with a non-existent tag returns 404."""
+    response = await client.post(
+        "/items",
+        json={
+            "name": "Item",
+            "tag_ids": ["00000000-0000-0000-0000-000000000000"],
+        },
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_item_with_other_users_tag(
+    client: AsyncClient, session: AsyncSession, test_user: User, other_user: User, auth_client
+):
+    """Test creating an item with another user's tag returns 404."""
+    other_tag = Tag(user_id=str(other_user.id), name="Other Tag")
+    session.add(other_tag)
+    await session.commit()
+    await session.refresh(other_tag)
+
+    response = await client.post(
+        "/items",
+        json={
+            "name": "Item",
+            "tag_ids": [other_tag.id],
+        },
+    )
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -93,7 +152,6 @@ async def test_create_item_with_all_fields(client: AsyncClient, test_user: User,
         json={
             "name": "Complete Item",
             "description": "Full description",
-            "category": "Art",
             "condition": "excellent",
             "location": "Living Room",
             "acquisition_date": "2024-01-15",
@@ -155,16 +213,25 @@ async def test_list_items_filter_by_collection(
 
 
 @pytest.mark.asyncio
-async def test_list_items_filter_by_category(
+async def test_list_items_filter_by_tag(
     client: AsyncClient, session: AsyncSession, test_user: User, auth_client
 ):
-    """Test filtering items by category."""
-    item1 = Item(user_id=str(test_user.id), name="Art Item", category="Art")
-    item2 = Item(user_id=str(test_user.id), name="Furniture Item", category="Furniture")
+    """Test filtering items by tag name."""
+    tag_art = Tag(user_id=str(test_user.id), name="Art")
+    tag_furniture = Tag(user_id=str(test_user.id), name="Furniture")
+    session.add_all([tag_art, tag_furniture])
+    await session.commit()
+    await session.refresh(tag_art)
+    await session.refresh(tag_furniture)
+
+    item1 = Item(user_id=str(test_user.id), name="Art Item")
+    item1.tags = [tag_art]
+    item2 = Item(user_id=str(test_user.id), name="Furniture Item")
+    item2.tags = [tag_furniture]
     session.add_all([item1, item2])
     await session.commit()
 
-    response = await client.get("/items?category=Art")
+    response = await client.get("/items?tag=Art")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
@@ -194,7 +261,7 @@ async def test_list_items_search(
 @pytest.mark.asyncio
 async def test_get_item(client: AsyncClient, session: AsyncSession, test_user: User, auth_client):
     """Test getting a single item."""
-    item = Item(user_id=str(test_user.id), name="My Item", category="Art")
+    item = Item(user_id=str(test_user.id), name="My Item")
     session.add(item)
     await session.commit()
     await session.refresh(item)
@@ -203,7 +270,6 @@ async def test_get_item(client: AsyncClient, session: AsyncSession, test_user: U
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "My Item"
-    assert data["category"] == "Art"
 
 
 @pytest.mark.asyncio
@@ -239,12 +305,65 @@ async def test_update_item(
 
     response = await client.patch(
         f"/items/{item.id}",
-        json={"name": "Updated Name", "category": "Art"},
+        json={"name": "Updated Name"},
     )
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Updated Name"
-    assert data["category"] == "Art"
+
+
+@pytest.mark.asyncio
+async def test_update_item_tags(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test updating an item's tags."""
+    tag1 = Tag(user_id=str(test_user.id), name="Art")
+    tag2 = Tag(user_id=str(test_user.id), name="Vintage")
+    session.add_all([tag1, tag2])
+    await session.commit()
+    await session.refresh(tag1)
+    await session.refresh(tag2)
+
+    item = Item(user_id=str(test_user.id), name="Item")
+    item.tags = [tag1]
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+
+    # Update to different tags
+    response = await client.patch(
+        f"/items/{item.id}",
+        json={"tag_ids": [tag2.id]},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["tags"]) == 1
+    assert data["tags"][0]["name"] == "Vintage"
+
+
+@pytest.mark.asyncio
+async def test_update_item_clear_tags(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test clearing an item's tags."""
+    tag = Tag(user_id=str(test_user.id), name="Art")
+    session.add(tag)
+    await session.commit()
+    await session.refresh(tag)
+
+    item = Item(user_id=str(test_user.id), name="Item")
+    item.tags = [tag]
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+
+    response = await client.patch(
+        f"/items/{item.id}",
+        json={"tag_ids": []},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["tags"] == []
 
 
 @pytest.mark.asyncio
@@ -328,22 +447,3 @@ async def test_items_isolation(
     data = response.json()
     assert len(data) == 1
     assert data[0]["name"] == "My Item"
-
-
-@pytest.mark.asyncio
-async def test_list_categories(
-    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
-):
-    """Test listing categories returns suggested plus custom."""
-    # Create items with custom categories
-    item1 = Item(user_id=str(test_user.id), name="Item 1", category="Art")  # Suggested
-    item2 = Item(user_id=str(test_user.id), name="Item 2", category="Custom Category")  # Custom
-    session.add_all([item1, item2])
-    await session.commit()
-
-    response = await client.get("/categories")
-    assert response.status_code == 200
-    data = response.json()
-    assert "Art" in data  # Suggested category
-    assert "Custom Category" in data  # Custom category
-    assert "Antique" in data  # Another suggested category (even though no items)

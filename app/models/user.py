@@ -19,3 +19,4 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     oauth_accounts = relationship("OAuthAccount", lazy="joined")
     collections = relationship("Collection", back_populates="user", cascade="all, delete-orphan")
     items = relationship("Item", back_populates="user", cascade="all, delete-orphan")
+    tags = relationship("Tag", back_populates="user", cascade="all, delete-orphan")

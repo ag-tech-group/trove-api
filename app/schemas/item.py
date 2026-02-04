@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.tag import TagRead
+
 
 class Condition(str, Enum):
     """Condition of an item."""
@@ -22,7 +24,6 @@ class ItemBase(BaseModel):
     # Basic Info
     name: str = Field(..., max_length=200)
     description: str | None = Field(default=None, max_length=5000)
-    category: str | None = Field(default=None, max_length=100)
     condition: Condition | None = Field(default=None)
     location: str | None = Field(default=None, max_length=200)
 
@@ -52,6 +53,7 @@ class ItemCreate(ItemBase):
     """Schema for creating an Item."""
 
     collection_id: UUID | None = Field(default=None)
+    tag_ids: list[UUID] = Field(default_factory=list)
 
 
 class ItemUpdate(BaseModel):
@@ -60,12 +62,14 @@ class ItemUpdate(BaseModel):
     # Basic Info
     name: str | None = Field(default=None, max_length=200)
     description: str | None = Field(default=None, max_length=5000)
-    category: str | None = Field(default=None, max_length=100)
     condition: Condition | None = Field(default=None)
     location: str | None = Field(default=None, max_length=200)
 
     # Collection
     collection_id: UUID | None = Field(default=None)
+
+    # Tags
+    tag_ids: list[UUID] | None = Field(default=None)
 
     # Financials
     acquisition_date: date | None = Field(default=None)
@@ -97,5 +101,6 @@ class ItemRead(ItemBase):
     id: UUID
     user_id: UUID
     collection_id: UUID | None
+    tags: list[TagRead] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
