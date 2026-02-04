@@ -42,13 +42,13 @@ class Item(Base):
     # Financials
     acquisition_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     acquisition_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    acquisition_source: Mapped[str | None] = mapped_column(String(200), nullable=True)
     estimated_value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
 
     # Provenance
     artist_maker: Mapped[str | None] = mapped_column(String(200), nullable=True)
     origin: Mapped[str | None] = mapped_column(String(200), nullable=True)
     date_era: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    provenance_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Physical Details
     height_cm: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
@@ -58,7 +58,6 @@ class Item(Base):
     materials: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Metadata
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -75,6 +74,27 @@ class Item(Base):
     user = relationship("User", back_populates="items")
     collection = relationship("Collection", back_populates="items")
     tags = relationship("Tag", secondary=item_tags, back_populates="items", lazy="selectin")
+    marks = relationship(
+        "Mark",
+        back_populates="item",
+        lazy="selectin",
+        order_by="Mark.created_at",
+        cascade="all, delete-orphan",
+    )
+    provenance_entries = relationship(
+        "ProvenanceEntry",
+        back_populates="item",
+        lazy="selectin",
+        order_by="ProvenanceEntry.created_at",
+        cascade="all, delete-orphan",
+    )
+    item_notes = relationship(
+        "ItemNote",
+        back_populates="item",
+        lazy="selectin",
+        order_by="ItemNote.created_at",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Item {self.name}>"

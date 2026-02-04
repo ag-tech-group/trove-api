@@ -10,7 +10,17 @@ from app.config import settings
 from app.database import Base
 
 # Import all models so Alembic can detect them
-from app.models import Collection, Item, OAuthAccount, RefreshToken, Tag, User  # noqa: F401
+from app.models import (  # noqa: F401
+    Collection,
+    Item,
+    ItemNote,
+    Mark,
+    OAuthAccount,
+    ProvenanceEntry,
+    RefreshToken,
+    Tag,
+    User,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
