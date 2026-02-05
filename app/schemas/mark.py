@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.image import ImageRead
+
 
 class MarkCreate(BaseModel):
     """Schema for creating a Mark."""
@@ -27,5 +29,6 @@ class MarkRead(BaseModel):
     item_id: UUID
     title: str | None
     description: str | None
+    images: list[ImageRead] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime

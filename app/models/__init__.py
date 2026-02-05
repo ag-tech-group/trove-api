@@ -1,4 +1,5 @@
 from app.models.collection import Collection
+from app.models.image import Image
 from app.models.item import Item
 from app.models.item_note import ItemNote
 from app.models.mark import Mark
@@ -11,6 +12,7 @@ from app.models.user import User
 __all__ = [
     "User",
     "Collection",
+    "Image",
     "Item",
     "ItemNote",
     "Mark",
