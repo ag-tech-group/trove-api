@@ -14,8 +14,7 @@ async def validate_image_file(file: UploadFile) -> bytes:
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File type '{file.content_type}' not allowed. "
-            f"Allowed types: JPEG, PNG, WebP",
+            detail=f"File type '{file.content_type}' not allowed. Allowed types: JPEG, PNG, WebP",
         )
 
     data = await file.read()
