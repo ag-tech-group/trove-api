@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.image import ImageRead
 from app.schemas.item_note import ItemNoteRead
 from app.schemas.mark import MarkRead
 from app.schemas.provenance_entry import ProvenanceEntryRead
@@ -109,5 +110,6 @@ class ItemRead(ItemBase):
     marks: list[MarkRead] = Field(default_factory=list)
     provenance_entries: list[ProvenanceEntryRead] = Field(default_factory=list)
     item_notes: list[ItemNoteRead] = Field(default_factory=list)
+    images: list[ImageRead] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime

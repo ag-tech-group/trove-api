@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     # Cookie auth
     cookie_domain: str | None = None
 
+    # Cloudflare R2 storage
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket_name: str = "trove-images"
+    r2_public_url: str = ""
+
     @property
     def is_development(self) -> bool:
         return self.environment == "development"
@@ -57,6 +64,8 @@ class Settings(BaseSettings):
                 )
             if "postgres:postgres@" in self.database_url:
                 raise ValueError("Default database credentials must not be used in production")
+            if not self.r2_account_id or not self.r2_public_url:
+                raise ValueError("R2_ACCOUNT_ID and R2_PUBLIC_URL must be set in production")
         return self
 
 

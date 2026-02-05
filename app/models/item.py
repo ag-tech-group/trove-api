@@ -98,6 +98,13 @@ class Item(Base):
         order_by="ItemNote.created_at",
         cascade="all, delete-orphan",
     )
+    images = relationship(
+        "Image",
+        back_populates="item",
+        lazy="selectin",
+        order_by="Image.position",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Item {self.name}>"

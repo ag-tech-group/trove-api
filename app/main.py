@@ -14,8 +14,10 @@ from app.models.user import User
 from app.routers import (
     collection_types_router,
     collections_router,
+    item_images_router,
     item_notes_router,
     items_router,
+    mark_images_router,
     marks_router,
     provenance_router,
     tags_router,
@@ -116,6 +118,8 @@ app.include_router(collections_router)
 app.include_router(items_router)
 app.include_router(tags_router)
 app.include_router(marks_router)
+app.include_router(item_images_router)
+app.include_router(mark_images_router)
 app.include_router(provenance_router)
 app.include_router(item_notes_router)
 

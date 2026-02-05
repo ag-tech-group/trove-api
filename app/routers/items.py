@@ -8,6 +8,7 @@ from app.auth import current_active_user
 from app.database import get_async_session
 from app.models import Collection, Item, Tag, User
 from app.schemas.item import ItemCreate, ItemRead, ItemUpdate
+from app.storage import delete_files
 from app.type_registry import validate_type_fields
 
 router = APIRouter(prefix="/items", tags=["items"])
@@ -233,5 +234,11 @@ async def delete_item(
             detail="Item not found",
         )
 
+    # Collect storage keys before deletion for best-effort R2 cleanup
+    storage_keys = [img.storage_key for img in item.images]
+
     await session.delete(item)
     await session.commit()
+
+    # Best-effort R2 cleanup
+    await delete_files(storage_keys)
