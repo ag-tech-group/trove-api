@@ -106,6 +106,7 @@ class ItemRead(ItemBase):
     id: UUID
     user_id: UUID
     collection_id: UUID | None
+    collection_name: str | None = None
     tags: list[TagRead] = Field(default_factory=list)
     marks: list[MarkRead] = Field(default_factory=list)
     provenance_entries: list[ProvenanceEntryRead] = Field(default_factory=list)

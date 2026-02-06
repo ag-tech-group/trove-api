@@ -578,3 +578,61 @@ async def test_items_isolation(
     data = response.json()
     assert len(data) == 1
     assert data[0]["name"] == "My Item"
+
+
+@pytest.mark.asyncio
+async def test_collection_name_in_list(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that collection_name appears in list items response."""
+    collection = Collection(user_id=str(test_user.id), name="Watches")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    item = Item(user_id=str(test_user.id), name="Rolex", collection_id=collection.id)
+    session.add(item)
+    await session.commit()
+
+    response = await client.get("/items")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["collection_name"] == "Watches"
+
+
+@pytest.mark.asyncio
+async def test_collection_name_in_get(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that collection_name appears in single item response."""
+    collection = Collection(user_id=str(test_user.id), name="Coins")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    item = Item(user_id=str(test_user.id), name="Gold Coin", collection_id=collection.id)
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+
+    response = await client.get(f"/items/{item.id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["collection_name"] == "Coins"
+
+
+@pytest.mark.asyncio
+async def test_collection_name_null_without_collection(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that collection_name is null when item has no collection."""
+    item = Item(user_id=str(test_user.id), name="Loose Item")
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+
+    response = await client.get(f"/items/{item.id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["collection_name"] is None
