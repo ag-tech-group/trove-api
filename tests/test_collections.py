@@ -3,6 +3,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Collection, Item, User
+from app.models.image import Image
 
 
 @pytest.mark.asyncio
@@ -289,3 +290,140 @@ async def test_collections_isolation(
     data = response.json()
     assert len(data) == 1
     assert data[0]["name"] == "My Collection"
+
+
+@pytest.mark.asyncio
+async def test_list_collections_preview_images(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that listing collections includes preview images from items."""
+    collection = Collection(user_id=str(test_user.id), name="My Collection")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    # Create items with images
+    item1 = Item(user_id=str(test_user.id), collection_id=collection.id, name="Item 1")
+    item2 = Item(user_id=str(test_user.id), collection_id=collection.id, name="Item 2")
+    session.add_all([item1, item2])
+    await session.commit()
+    await session.refresh(item1)
+    await session.refresh(item2)
+
+    img1 = Image(
+        user_id=str(test_user.id),
+        item_id=item1.id,
+        filename="a.jpg",
+        storage_key="key-a",
+        url="https://example.com/a.jpg",
+        content_type="image/jpeg",
+        size_bytes=1024,
+        position=0,
+    )
+    img2 = Image(
+        user_id=str(test_user.id),
+        item_id=item2.id,
+        filename="b.jpg",
+        storage_key="key-b",
+        url="https://example.com/b.jpg",
+        content_type="image/jpeg",
+        size_bytes=1024,
+        position=0,
+    )
+    session.add_all([img1, img2])
+    await session.commit()
+
+    response = await client.get("/collections")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert len(data[0]["preview_images"]) == 2
+    urls = {p["url"] for p in data[0]["preview_images"]}
+    assert "https://example.com/a.jpg" in urls
+    assert "https://example.com/b.jpg" in urls
+
+
+@pytest.mark.asyncio
+async def test_list_collections_preview_images_max_four(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that preview images are limited to 4 per collection."""
+    collection = Collection(user_id=str(test_user.id), name="Big Collection")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    # Create 6 items each with an image
+    for i in range(6):
+        item = Item(user_id=str(test_user.id), collection_id=collection.id, name=f"Item {i}")
+        session.add(item)
+        await session.commit()
+        await session.refresh(item)
+        img = Image(
+            user_id=str(test_user.id),
+            item_id=item.id,
+            filename=f"img{i}.jpg",
+            storage_key=f"key-{i}",
+            url=f"https://example.com/img{i}.jpg",
+            content_type="image/jpeg",
+            size_bytes=1024,
+            position=0,
+        )
+        session.add(img)
+    await session.commit()
+
+    response = await client.get("/collections")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data[0]["preview_images"]) == 4
+
+
+@pytest.mark.asyncio
+async def test_get_collection_preview_images(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that getting a single collection includes preview images."""
+    collection = Collection(user_id=str(test_user.id), name="My Collection")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    item = Item(user_id=str(test_user.id), collection_id=collection.id, name="Item 1")
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+
+    img = Image(
+        user_id=str(test_user.id),
+        item_id=item.id,
+        filename="pic.jpg",
+        storage_key="key-pic",
+        url="https://example.com/pic.jpg",
+        content_type="image/jpeg",
+        size_bytes=1024,
+        position=0,
+    )
+    session.add(img)
+    await session.commit()
+
+    response = await client.get(f"/collections/{collection.id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["preview_images"]) == 1
+    assert data["preview_images"][0]["url"] == "https://example.com/pic.jpg"
+
+
+@pytest.mark.asyncio
+async def test_collection_no_images_empty_preview(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that collections without images have empty preview_images."""
+    collection = Collection(user_id=str(test_user.id), name="Empty Collection")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    response = await client.get(f"/collections/{collection.id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["preview_images"] == []

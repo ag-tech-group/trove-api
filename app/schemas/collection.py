@@ -53,7 +53,15 @@ class CollectionRead(CollectionBase):
     updated_at: datetime
 
 
+class ImagePreview(BaseModel):
+    """Lightweight image preview for collection cards."""
+
+    id: UUID
+    url: str
+
+
 class CollectionReadWithCount(CollectionRead):
     """Schema for reading a Collection with item count."""
 
     item_count: int = 0
+    preview_images: list[ImagePreview] = []
