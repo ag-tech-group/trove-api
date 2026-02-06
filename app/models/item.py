@@ -75,7 +75,7 @@ class Item(Base):
 
     # Relationships
     user = relationship("User", back_populates="items")
-    collection = relationship("Collection", back_populates="items")
+    collection = relationship("Collection", back_populates="items", lazy="selectin")
     tags = relationship("Tag", secondary=item_tags, back_populates="items", lazy="selectin")
     marks = relationship(
         "Mark",
@@ -105,6 +105,10 @@ class Item(Base):
         order_by="Image.position",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def collection_name(self) -> str | None:
+        return self.collection.name if self.collection else None
 
     def __repr__(self) -> str:
         return f"<Item {self.name}>"
