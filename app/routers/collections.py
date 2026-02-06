@@ -7,14 +7,88 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import current_active_user
 from app.database import get_async_session
 from app.models import Collection, Item, User
+from app.models.image import Image
 from app.schemas.collection import (
     CollectionCreate,
     CollectionRead,
     CollectionReadWithCount,
     CollectionUpdate,
+    ImagePreview,
 )
 
 router = APIRouter(prefix="/collections", tags=["collections"])
+
+
+async def _get_preview_images(
+    collection_ids: list[str],
+    session: AsyncSession,
+) -> dict[str, list[ImagePreview]]:
+    """Fetch up to 4 preview images per collection.
+
+    For each collection, picks the first image (by position) from each of the
+    first 4 items that have images, ordered by item creation date.
+    """
+    if not collection_ids:
+        return {}
+
+    # Use a window function to rank images within each collection,
+    # picking the first image per item (by position), then ranking items by created_at.
+    from sqlalchemy import and_
+
+    # Subquery: for each image, get its collection_id via the item,
+    # and rank it: first by item created_at, then by image position.
+    # We only want the first image per item, then the first 4 items per collection.
+    first_image_per_item = (
+        select(
+            Image.id.label("image_id"),
+            Image.url.label("image_url"),
+            Item.collection_id.label("collection_id"),
+            func.row_number()
+            .over(
+                partition_by=[Item.collection_id, Item.id],
+                order_by=Image.position,
+            )
+            .label("img_rank"),
+            func.min(Image.position)
+            .over(partition_by=[Item.collection_id, Item.id])
+            .label("_min_pos"),
+        )
+        .join(Item, and_(Image.item_id == Item.id, Item.collection_id.in_(collection_ids)))
+        .subquery()
+    )
+
+    # Filter to first image per item, then rank items within each collection
+    ranked = (
+        select(
+            first_image_per_item.c.image_id,
+            first_image_per_item.c.image_url,
+            first_image_per_item.c.collection_id,
+            func.row_number()
+            .over(
+                partition_by=first_image_per_item.c.collection_id,
+                order_by=first_image_per_item.c.image_id,
+            )
+            .label("item_rank"),
+        )
+        .where(first_image_per_item.c.img_rank == 1)
+        .subquery()
+    )
+
+    stmt = (
+        select(ranked.c.collection_id, ranked.c.image_id, ranked.c.image_url)
+        .where(ranked.c.item_rank <= 4)
+        .order_by(ranked.c.collection_id, ranked.c.item_rank)
+    )
+
+    result = await session.execute(stmt)
+    rows = result.all()
+
+    previews: dict[str, list[ImagePreview]] = {}
+    for row in rows:
+        previews.setdefault(row.collection_id, []).append(
+            ImagePreview(id=row.image_id, url=row.image_url)
+        )
+    return previews
 
 
 @router.get("", response_model=list[CollectionReadWithCount])
@@ -34,6 +108,9 @@ async def list_collections(
     result = await session.execute(stmt)
     rows = result.all()
 
+    collection_ids = [row.Collection.id for row in rows]
+    previews = await _get_preview_images(collection_ids, session)
+
     return [
         CollectionReadWithCount(
             id=row.Collection.id,
@@ -44,6 +121,7 @@ async def list_collections(
             created_at=row.Collection.created_at,
             updated_at=row.Collection.updated_at,
             item_count=row.item_count,
+            preview_images=previews.get(row.Collection.id, []),
         )
         for row in rows
     ]
@@ -71,6 +149,8 @@ async def get_collection(
             detail="Collection not found",
         )
 
+    previews = await _get_preview_images([row.Collection.id], session)
+
     return CollectionReadWithCount(
         id=row.Collection.id,
         user_id=row.Collection.user_id,
@@ -80,6 +160,7 @@ async def get_collection(
         created_at=row.Collection.created_at,
         updated_at=row.Collection.updated_at,
         item_count=row.item_count,
+        preview_images=previews.get(row.Collection.id, []),
     )
 
 
