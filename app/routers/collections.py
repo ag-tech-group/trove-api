@@ -97,9 +97,13 @@ async def list_collections(
     session: AsyncSession = Depends(get_async_session),
 ):
     """List all collections for the current user."""
-    # Get collections with item counts
+    # Get collections with item counts and total value
     stmt = (
-        select(Collection, func.count(Item.id).label("item_count"))
+        select(
+            Collection,
+            func.count(Item.id).label("item_count"),
+            func.sum(Item.estimated_value).label("total_value"),
+        )
         .outerjoin(Item, Collection.id == Item.collection_id)
         .where(Collection.user_id == str(user.id))
         .group_by(Collection.id)
@@ -121,6 +125,7 @@ async def list_collections(
             created_at=row.Collection.created_at,
             updated_at=row.Collection.updated_at,
             item_count=row.item_count,
+            total_value=row.total_value or None,
             preview_images=previews.get(row.Collection.id, []),
         )
         for row in rows
@@ -135,7 +140,11 @@ async def get_collection(
 ):
     """Get a single collection by ID."""
     stmt = (
-        select(Collection, func.count(Item.id).label("item_count"))
+        select(
+            Collection,
+            func.count(Item.id).label("item_count"),
+            func.sum(Item.estimated_value).label("total_value"),
+        )
         .outerjoin(Item, Collection.id == Item.collection_id)
         .where(Collection.id == str(collection_id), Collection.user_id == str(user.id))
         .group_by(Collection.id)
@@ -160,6 +169,7 @@ async def get_collection(
         created_at=row.Collection.created_at,
         updated_at=row.Collection.updated_at,
         item_count=row.item_count,
+        total_value=row.total_value or None,
         preview_images=previews.get(row.Collection.id, []),
     )
 
