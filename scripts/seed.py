@@ -755,6 +755,39 @@ CERAMICS = [
         "materials": "Earthenware, glazed",
         "tags": ["vintage", "needs restoration"],
     },
+    {
+        "name": "Murano Glass Paperweight",
+        "description": "Millefiori paperweight with concentric rings of canes in red, white, and blue.",
+        "condition": "excellent",
+        "origin": "Murano, Italy",
+        "date_era": "1960s",
+        "height_cm": Decimal("5.00"),
+        "width_cm": Decimal("7.50"),
+        "weight_kg": Decimal("0.420"),
+        "materials": "Glass",
+        "tags": ["vintage", "displayed", "gift"],
+    },
+    {
+        "name": "Bakelite Radio — Emerson Patriot",
+        "description": "1940 Emerson model 400 'Patriot' catalin radio in marbled red.",
+        "condition": "fair",
+        "artist_maker": "Emerson Radio",
+        "origin": "United States",
+        "date_era": "1940",
+        "height_cm": Decimal("18.00"),
+        "width_cm": Decimal("25.00"),
+        "depth_cm": Decimal("14.00"),
+        "weight_kg": Decimal("2.100"),
+        "materials": "Catalin (Bakelite), metal chassis, vacuum tubes",
+        "estimated_value": Decimal("1200.00"),
+        "tags": ["vintage", "rare", "needs restoration", "appraised"],
+        "notes": [
+            {
+                "title": "Electrical safety",
+                "body": "Has NOT been re-capped. Do not plug in without replacing electrolytic capacitors — fire risk. Original power cord is frayed and must be replaced.",
+            },
+        ],
+    },
 ]
 
 MAPS = [
@@ -941,6 +974,21 @@ MAPS = [
         "date_era": "1375 (facsimile 2008)",
         "materials": "Parchment-style paper, offset print",
         "acquisition_price": Decimal("35.00"),
+    },
+    {
+        "name": "Japanese Woodblock Print — Hiroshige",
+        "description": "Sudden Shower over Shin-Ōhashi Bridge, from One Hundred Famous Views of Edo.",
+        "condition": "good",
+        "artist_maker": "Utagawa Hiroshige",
+        "origin": "Japan",
+        "date_era": "1857",
+        "height_cm": Decimal("36.00"),
+        "width_cm": Decimal("25.00"),
+        "materials": "Washi paper, woodblock print",
+        "acquisition_date": date(2020, 2, 14),
+        "acquisition_price": Decimal("1600.00"),
+        "acquisition_source": "Scholten Japanese Art",
+        "tags": ["vintage", "framed", "displayed", "insured"],
     },
 ]
 
@@ -1311,36 +1359,6 @@ WATCHES = [
         "estimated_value": Decimal("2500.00"),
         "tags": ["rare", "vintage", "insured", "auction find"],
     },
-]
-
-ORPHANS = [
-    {
-        "name": "Murano Glass Paperweight",
-        "description": "Millefiori paperweight with concentric rings of canes in red, white, and blue.",
-        "condition": "excellent",
-        "origin": "Murano, Italy",
-        "date_era": "1960s",
-        "height_cm": Decimal("5.00"),
-        "width_cm": Decimal("7.50"),
-        "weight_kg": Decimal("0.420"),
-        "materials": "Glass",
-        "tags": ["vintage", "displayed", "gift"],
-    },
-    {
-        "name": "Japanese Woodblock Print — Hiroshige",
-        "description": "Sudden Shower over Shin-Ōhashi Bridge, from One Hundred Famous Views of Edo.",
-        "condition": "good",
-        "artist_maker": "Utagawa Hiroshige",
-        "origin": "Japan",
-        "date_era": "1857",
-        "height_cm": Decimal("36.00"),
-        "width_cm": Decimal("25.00"),
-        "materials": "Washi paper, woodblock print",
-        "acquisition_date": date(2020, 2, 14),
-        "acquisition_price": Decimal("1600.00"),
-        "acquisition_source": "Scholten Japanese Art",
-        "tags": ["vintage", "framed", "displayed", "insured"],
-    },
     {
         "name": "Victorian Mourning Brooch",
         "description": "Black jet brooch with carved floral border and woven hair under glass.",
@@ -1366,27 +1384,6 @@ ORPHANS = [
             {
                 "title": "Silver hallmark",
                 "description": "Austrian 935 silver hallmark (Diana head) with maker's mark 'GH' in lozenge",
-            },
-        ],
-    },
-    {
-        "name": "Bakelite Radio — Emerson Patriot",
-        "description": "1940 Emerson model 400 'Patriot' catalin radio in marbled red.",
-        "condition": "fair",
-        "artist_maker": "Emerson Radio",
-        "origin": "United States",
-        "date_era": "1940",
-        "height_cm": Decimal("18.00"),
-        "width_cm": Decimal("25.00"),
-        "depth_cm": Decimal("14.00"),
-        "weight_kg": Decimal("2.100"),
-        "materials": "Catalin (Bakelite), metal chassis, vacuum tubes",
-        "estimated_value": Decimal("1200.00"),
-        "tags": ["vintage", "rare", "needs restoration", "appraised"],
-        "notes": [
-            {
-                "title": "Electrical safety",
-                "body": "Has NOT been re-capped. Do not plug in without replacing electrolytic capacitors — fire risk. Original power cord is frayed and must be replaced.",
             },
         ],
     },
@@ -1508,42 +1505,11 @@ async def seed(email: str, clear: bool) -> None:
 
             print(f"  Collection '{coll.name}': {len(items_data)} items")
 
-        # ── Orphan items (no collection) ──
-        for item_data in ORPHANS:
-            item_kwargs = {k: v for k, v in item_data.items() if k in ITEM_FIELDS}
-            item = Item(id=uid(), user_id=user_id, collection_id=None, **item_kwargs)
-            session.add(item)
-            await session.flush()
-
-            for tag_name in item_data.get("tags", []):
-                await session.execute(
-                    item_tags.insert().values(item_id=item.id, tag_id=tag_map[tag_name].id)
-                )
-
-            for mark_data in item_data.get("marks", []):
-                mark = Mark(id=uid(), item_id=item.id, **mark_data)
-                session.add(mark)
-                total_marks += 1
-
-            for note_data in item_data.get("notes", []):
-                note = ItemNote(id=uid(), item_id=item.id, **note_data)
-                session.add(note)
-                total_notes += 1
-
-            for prov_data in item_data.get("provenance", []):
-                entry = ProvenanceEntry(id=uid(), item_id=item.id, **prov_data)
-                session.add(entry)
-                total_provenance += 1
-
-            total_items += 1
-
-        print(f"  Orphan items (no collection): {len(ORPHANS)} items")
-
         await session.commit()
 
         print("\nDone! Seeded:")
         print(f"  {len(COLLECTIONS)} collections")
-        print(f"  {total_items} items ({len(ORPHANS)} without a collection)")
+        print(f"  {total_items} items")
         print(f"  {len(tag_map)} tags")
         print(f"  {total_marks} marks")
         print(f"  {total_notes} notes")
