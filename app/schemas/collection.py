@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -64,4 +65,5 @@ class CollectionReadWithCount(CollectionRead):
     """Schema for reading a Collection with item count."""
 
     item_count: int = 0
+    total_value: Decimal | None = None
     preview_images: list[ImagePreview] = []

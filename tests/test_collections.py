@@ -427,3 +427,105 @@ async def test_collection_no_images_empty_preview(
     assert response.status_code == 200
     data = response.json()
     assert data["preview_images"] == []
+
+
+@pytest.mark.asyncio
+async def test_list_collections_total_value(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that listing collections includes total_value summing estimated_value."""
+    collection = Collection(user_id=str(test_user.id), name="Valued Collection")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    item1 = Item(
+        user_id=str(test_user.id),
+        collection_id=collection.id,
+        name="Item 1",
+        estimated_value=100.50,
+    )
+    item2 = Item(
+        user_id=str(test_user.id),
+        collection_id=collection.id,
+        name="Item 2",
+        estimated_value=250.00,
+    )
+    item3 = Item(
+        user_id=str(test_user.id),
+        collection_id=collection.id,
+        name="Item 3 (no value)",
+    )
+    session.add_all([item1, item2, item3])
+    await session.commit()
+
+    response = await client.get("/collections")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["total_value"] == "350.50"
+
+
+@pytest.mark.asyncio
+async def test_get_collection_total_value(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that getting a single collection includes total_value."""
+    collection = Collection(user_id=str(test_user.id), name="My Collection")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    item = Item(
+        user_id=str(test_user.id),
+        collection_id=collection.id,
+        name="Valuable Item",
+        estimated_value=999.99,
+    )
+    session.add(item)
+    await session.commit()
+
+    response = await client.get(f"/collections/{collection.id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_value"] == "999.99"
+
+
+@pytest.mark.asyncio
+async def test_collection_total_value_null_when_no_values(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that total_value is null when no items have estimated_value."""
+    collection = Collection(user_id=str(test_user.id), name="No Values")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    item = Item(
+        user_id=str(test_user.id),
+        collection_id=collection.id,
+        name="Item without value",
+    )
+    session.add(item)
+    await session.commit()
+
+    response = await client.get(f"/collections/{collection.id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_value"] is None
+
+
+@pytest.mark.asyncio
+async def test_empty_collection_total_value_null(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that total_value is null for empty collections."""
+    collection = Collection(user_id=str(test_user.id), name="Empty")
+    session.add(collection)
+    await session.commit()
+    await session.refresh(collection)
+
+    response = await client.get(f"/collections/{collection.id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_value"] is None
