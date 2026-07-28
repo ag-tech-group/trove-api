@@ -27,7 +27,7 @@ async def setup_database():
         await conn.run_sync(Base.metadata.drop_all)
 
 
-async def override_get_async_session() -> AsyncGenerator[AsyncSession, None]:
+async def override_get_async_session() -> AsyncGenerator[AsyncSession]:
     async with async_session_maker() as session:
         yield session
 
@@ -36,7 +36,7 @@ app.dependency_overrides[get_async_session] = override_get_async_session
 
 
 @pytest.fixture
-async def client() -> AsyncGenerator[AsyncClient, None]:
+async def client() -> AsyncGenerator[AsyncClient]:
     """Async HTTP client for testing."""
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -46,7 +46,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-async def session() -> AsyncGenerator[AsyncSession, None]:
+async def session() -> AsyncGenerator[AsyncSession]:
     """Direct database session for test setup."""
     async with async_session_maker() as session:
         yield session
