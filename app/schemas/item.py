@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
@@ -13,7 +13,7 @@ from app.schemas.provenance_entry import ProvenanceEntryRead
 from app.schemas.tag import TagRead
 
 
-class Condition(str, Enum):
+class Condition(StrEnum):
     """Condition of an item."""
 
     EXCELLENT = "excellent"
