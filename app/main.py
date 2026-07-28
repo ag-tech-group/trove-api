@@ -79,19 +79,48 @@ _AUTH_RATE_LIMITS: dict[str, RateLimitItem] = {
 # OAuth endpoints use GET instead of POST
 _OAUTH_PATHS = {"/auth/google/authorize", "/auth/google/callback"}
 
+# Global default for every other route, matching the per-client-IP keying of
+# the auth limits. Enforced here in-house (limits via limiter._limiter)
+# rather than through slowapi's SlowAPIMiddleware, whose default_limits
+# enforcement FastAPI >=0.137 breaks for routes mounted via include_router
+# (slowapi issue #281).
+_DEFAULT_RATE_LIMIT: RateLimitItem = parse("300/minute")
+
+# Infrastructure paths that must never 429: probes, docs, and the security
+# contact file.
+_RATE_LIMIT_EXEMPT_PATHS = {
+    "/",
+    "/health",
+    "/docs",
+    "/openapi.json",
+    "/.well-known/security.txt",
+}
+
 
 @app.middleware("http")
-async def rate_limit_auth(request: Request, call_next) -> Response:
-    """Apply rate limits to auth endpoints."""
-    rate_limit = _AUTH_RATE_LIMITS.get(request.url.path)
-    is_oauth = request.url.path in _OAUTH_PATHS
-    if rate_limit and (request.method == "POST" or is_oauth):
+async def rate_limit(request: Request, call_next) -> Response:
+    """Apply rate limits.
+
+    Auth endpoints get their strict per-path limits; every other route gets
+    the global default except the exempt infrastructure paths. A request
+    that consumed an auth limit does not also consume the default bucket.
+    """
+    path = request.url.path
+    auth_limit = _AUTH_RATE_LIMITS.get(path)
+    is_oauth = path in _OAUTH_PATHS
+    if auth_limit and (request.method == "POST" or is_oauth):
+        rate_limit_item: RateLimitItem | None = auth_limit
+    elif path in _RATE_LIMIT_EXEMPT_PATHS:
+        rate_limit_item = None
+    else:
+        rate_limit_item = _DEFAULT_RATE_LIMIT
+    if rate_limit_item is not None:
         key = get_remote_address(request)
-        if not limiter._limiter.hit(rate_limit, key):
+        if not limiter._limiter.hit(rate_limit_item, key):
             log_security_event(
                 SecurityEvent.RATE_LIMIT_HIT,
                 request=request,
-                detail=f"path={request.url.path}",
+                detail=f"path={path}",
             )
             return JSONResponse(
                 status_code=429,
