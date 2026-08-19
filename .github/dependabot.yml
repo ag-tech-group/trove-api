@@ -16,6 +16,7 @@ updates:
     groups:
       actions:
         update-types:
+          - "major"
           - "minor"
           - "patch"
   - package-ecosystem: "docker"
