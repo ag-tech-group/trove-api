@@ -45,6 +45,20 @@ jobs:
         env:
           IMAGE: ${{ env.IMAGE }}
 
+      # THIS COMMAND MUST KEEP SETTING ONLY THE IMAGE. Do not add --set-env-vars,
+      # --memory, --cpu, --min-instances, --service-account or anything else.
+      #
+      # The service's shape — env vars, secret bindings, scaling, CPU and memory,
+      # probes, runtime identity and the Cloud SQL attachment — is declared as
+      # infrastructure as code and owned there. This workflow owns exactly one
+      # field, the image tag, and the two systems stay out of each other's way
+      # only because `gcloud run services update` MERGES rather than replaces.
+      #
+      # That boundary is enforced on the other side by an `ignore_changes` on the
+      # image. Widening this command does not cause a conflict or an error: it
+      # silently makes that ignore a lie, and drift detection for this service
+      # stops working with nothing anywhere reporting it. If the service needs a
+      # different shape, change it in the infrastructure repo, not here.
       - name: Deploy to Cloud Run
         run: |
           gcloud run services update $SERVICE_NAME \
