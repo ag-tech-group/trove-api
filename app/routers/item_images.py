@@ -46,7 +46,7 @@ async def upload_item_image(
     # Determine position (append to end)
     position = max((img.position for img in existing), default=-1) + 1
 
-    # Upload to R2
+    # Upload to object storage
     image_id = str(uuid4())
     ext = _extension_from_content_type(file.content_type)
     storage_key = f"items/{item.id}/{image_id}{ext}"
@@ -94,7 +94,7 @@ async def delete_item_image(
     await session.delete(image)
     await session.commit()
 
-    # Best-effort R2 cleanup
+    # Best-effort object storage cleanup
     await delete_file(storage_key)
 
 
