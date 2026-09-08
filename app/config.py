@@ -33,12 +33,16 @@ class Settings(BaseSettings):
     # Cookie auth
     cookie_domain: str | None = None
 
-    # Cloudflare R2 storage
-    r2_account_id: str = ""
-    r2_access_key_id: str = ""
-    r2_secret_access_key: str = ""
-    r2_bucket_name: str = ""
-    r2_public_url: str = ""
+    # Cloud Storage. ONE SETTING, NOT TWO: the public URL is derived below rather
+    # than configured, because a bucket name and a separately-configured URL can
+    # disagree — and when they do, uploads succeed while every image 404s. That
+    # exact class of bug is what #43 and #44 were about under the previous
+    # provider. Deriving it makes the two impossible to contradict.
+    #
+    # No credentials here at all. Cloud Run authenticates as its own service
+    # account and local development uses application default credentials, so
+    # there is no key pair to configure, store or rotate.
+    storage_bucket_name: str = ""
 
     @property
     def is_development(self) -> bool:
@@ -47,6 +51,15 @@ class Settings(BaseSettings):
     @property
     def cookie_samesite(self) -> str:
         return "lax" if self.is_development else "none"
+
+    @property
+    def storage_public_url(self) -> str:
+        """Public URL base for objects in the images bucket.
+
+        Cloud Storage serves public objects from this canonical host, so no
+        custom domain and no load balancer is needed to reach them.
+        """
+        return f"https://storage.googleapis.com/{self.storage_bucket_name}"
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -64,10 +77,8 @@ class Settings(BaseSettings):
                 )
             if "postgres:postgres@" in self.database_url:
                 raise ValueError("Default database credentials must not be used in production")
-            if not self.r2_account_id or not self.r2_public_url or not self.r2_bucket_name:
-                raise ValueError(
-                    "R2_ACCOUNT_ID, R2_PUBLIC_URL and R2_BUCKET_NAME must be set in production"
-                )
+            if not self.storage_bucket_name:
+                raise ValueError("STORAGE_BUCKET_NAME must be set in production")
         return self
 
 
