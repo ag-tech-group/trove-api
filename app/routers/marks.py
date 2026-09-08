@@ -89,11 +89,11 @@ async def delete_mark(
             detail="Mark not found",
         )
 
-    # Collect storage keys before deletion for best-effort R2 cleanup
+    # Collect storage keys before deletion for best-effort object storage cleanup
     storage_keys = [img.storage_key for img in mark.images]
 
     await session.delete(mark)
     await session.commit()
 
-    # Best-effort R2 cleanup
+    # Best-effort object storage cleanup
     await delete_files(storage_keys)
