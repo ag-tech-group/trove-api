@@ -10,6 +10,7 @@ from app.auth import auth_backend, current_active_user, fastapi_users
 from app.auth.oauth import google_oauth_router
 from app.auth.security_logging import SecurityEvent, log_security_event
 from app.config import settings
+from app.logging import setup_logging
 from app.models.user import User
 from app.routers import (
     collection_types_router,
@@ -24,6 +25,17 @@ from app.routers import (
 )
 from app.routers.auth_refresh import router as auth_refresh_router
 from app.schemas.user import UserCreate, UserRead
+from app.sentry import init_sentry
+
+# --- Observability ---
+# BOTH CALLS MUST STAY ABOVE `app = FastAPI(...)`. The Sentry SDK's Starlette and
+# FastAPI integrations auto-instrument the middleware stack at app construction
+# time, so initialising after it silently loses request context — URL, method,
+# headers — on every captured event. Nothing fails and events still arrive; they
+# just stop being actionable. `setup_logging()` leads so that anything the rest
+# of module import emits is already formatted.
+setup_logging()
+init_sentry()
 
 app = FastAPI(
     title="Trove API",
