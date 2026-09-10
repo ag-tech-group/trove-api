@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "development"
 
+    # Logging
+    log_level: str = "INFO"
+
     # CORS — comma-separated origins, e.g. "https://trove.app,https://www.trove.app"
     cors_origins: str = ""
 
@@ -43,6 +46,14 @@ class Settings(BaseSettings):
     # account and local development uses application default credentials, so
     # there is no key pair to configure, store or rotate.
     storage_bucket_name: str = ""
+
+    # Sentry. Empty DSN disables error monitoring entirely rather than failing,
+    # so development and tests need no project. The release is baked into the
+    # image at build time (see the Dockerfile) rather than set per-deploy —
+    # infrastructure owns the service's shape and CI owns only the image tag, so
+    # an image that carries its own release identity respects that split.
+    sentry_dsn: str = ""
+    sentry_release: str = ""
 
     @property
     def is_development(self) -> bool:
