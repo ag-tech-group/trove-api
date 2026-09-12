@@ -21,6 +21,7 @@ Personal collection management API for tracking antiques, art, and valuables.
 | ORM                | SQLAlchemy 2.0                 |
 | Migrations         | Alembic                        |
 | Auth               | FastAPI-Users (JWT)            |
+| Email              | Resend                         |
 | Package Manager    | uv                             |
 | Containerization   | Docker / Docker Compose        |
 | Testing            | Pytest (async)                 |
@@ -78,10 +79,25 @@ Once running, visit:
 
 ### Auth
 
-| Method | Endpoint          | Description          |
-| ------ | ----------------- | -------------------- |
-| POST   | `/auth/register`  | Create a new account |
-| POST   | `/auth/jwt/login` | Get JWT access token |
+| Method | Endpoint                     | Description                                       |
+| ------ | ---------------------------- | ------------------------------------------------- |
+| POST   | `/auth/register`             | Create a new account                              |
+| POST   | `/auth/jwt/login`            | Get JWT access token                              |
+| POST   | `/auth/jwt/logout`           | Revoke the refresh token family and clear cookies |
+| POST   | `/auth/refresh`              | Exchange the refresh cookie for a new access token|
+| GET    | `/auth/me`                   | Current user                                      |
+| POST   | `/auth/forgot-password`      | Email a password reset link (always 202)          |
+| POST   | `/auth/reset-password`       | Consume a reset token and set a new password      |
+| POST   | `/auth/request-verify-token` | Email an address-confirmation link (always 202)   |
+| POST   | `/auth/verify`               | Consume a verification token                      |
+
+`/auth/forgot-password` and `/auth/request-verify-token` answer 202 whether or
+not the address has an account, so neither reveals who is registered. Both
+links land in the frontend (`/reset-password`, `/verify-email`), which posts the
+token back to the endpoint above it. Tokens last one hour.
+
+Verification is offered, not required: nothing in the API checks `is_verified`,
+so registering grants immediate access.
 
 ### Collections
 
@@ -180,6 +196,8 @@ trove-api/
 │   ├── schemas/        # Pydantic request/response schemas
 │   ├── config.py       # Settings from environment
 │   ├── database.py     # Async SQLAlchemy setup
+│   ├── email.py        # Transactional email transport (Resend)
+│   ├── email_templates.py  # What those emails say
 │   └── main.py         # FastAPI app entry point
 ├── alembic/
 │   ├── versions/       # Migration files
@@ -201,6 +219,18 @@ trove-api/
 | `DATABASE_URL` | PostgreSQL connection string  | `postgresql+asyncpg://postgres:postgres@localhost:5432/trove_db` |
 | `SECRET_KEY`   | JWT signing key               | `change-me-in-production`                                        |
 | `ENVIRONMENT`  | `development` or `production` | `development`                                                    |
+| `RESEND_API_KEY` | Resend API key. Empty disables sending (see below) | *(empty)*                     |
+| `EMAIL_FROM`   | Sender, RFC 5322 form         | `Trove <noreply@mail.trovebox.io>`                               |
+
+### Email in development
+
+Leave `RESEND_API_KEY` empty. Nothing is sent, and the message — including the
+reset link — is logged to stdout instead, so the whole forgot-password flow can
+be walked through locally with no Resend account and no real inbox.
+
+That only happens when `ENVIRONMENT=development`. Anywhere else an empty key
+logs an error naming the recipient and the subject, and never the link: the link
+is a working password reset token, and a log is the wrong place to keep one.
 
 ## License
 

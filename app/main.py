@@ -70,6 +70,28 @@ app.include_router(
     prefix="/auth",
     tags=["auth"],
 )
+# POST /auth/forgot-password and POST /auth/reset-password. Both existed as
+# handlers in `app/auth/users.py` long before this line did — `fastapi-users`
+# builds the routes but mounting them is the application's choice, so until the
+# email service existed to carry the token the hooks were unreachable code.
+app.include_router(
+    fastapi_users.get_reset_password_router(),
+    prefix="/auth",
+    tags=["auth"],
+)
+# POST /auth/request-verify-token and POST /auth/verify.
+#
+# MOUNTING THESE DOES NOT MAKE VERIFICATION MANDATORY. `current_active_user` is
+# `current_user(active=True)`, so nothing in the API checks `is_verified` and
+# registration still grants immediate access. These endpoints let an account
+# confirm its address; requiring it before login is a product decision, and
+# would be a one-word change here that locks out every account registered
+# before it.
+app.include_router(
+    fastapi_users.get_verify_router(UserRead),
+    prefix="/auth",
+    tags=["auth"],
+)
 app.include_router(google_oauth_router)
 # --- End auth routes ---
 
@@ -86,6 +108,20 @@ _AUTH_RATE_LIMITS: dict[str, RateLimitItem] = {
     "/auth/refresh": parse("30/minute"),
     "/auth/google/authorize": parse("10/minute"),
     "/auth/google/callback": parse("10/minute"),
+    # THE TWO THAT SEND MAIL ARE THE TIGHTEST HERE, and not because of the
+    # database cost. An unauthenticated caller names the recipient, so an
+    # unlimited endpoint is a way to flood a stranger's inbox from Trove's
+    # sending domain — which spends the domain's reputation, the one asset the
+    # DKIM records in trove-infra exist to build. The quiet 202 these return for
+    # an unregistered address also makes them the natural place to probe for who
+    # has an account, and a low ceiling is what makes that expensive.
+    "/auth/forgot-password": parse("3/minute"),
+    "/auth/request-verify-token": parse("3/minute"),
+    # The token-consuming halves are guessing surfaces rather than sending ones.
+    # Both tokens are HMAC-signed JWTs, so forgery is not the threat a limit
+    # addresses; this just denies a client the volume to try.
+    "/auth/reset-password": parse("5/minute"),
+    "/auth/verify": parse("5/minute"),
 }
 
 # OAuth endpoints use GET instead of POST
