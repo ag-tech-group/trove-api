@@ -20,13 +20,17 @@ dependencies = [
     "google-cloud-storage>=2.19.0",
     "sentry-sdk[fastapi]>=2.20.0",
     "structlog>=25.1.0",
+    # Runtime, not just test: app/email.py posts to Resend with it. It was
+    # already installed either way — httpx-oauth pulls it in — but a module that
+    # imports a package directly should be the reason it is locked, not a
+    # side effect of something else needing it.
+    "httpx>=0.27.0",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
-    "httpx>=0.27.0",
     "aiosqlite>=0.20.0",
     "ruff>=0.16.3",
     "pre-commit>=4.6.2",

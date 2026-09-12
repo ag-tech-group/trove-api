@@ -55,6 +55,28 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
     sentry_release: str = ""
 
+    # Email (Resend). The provider is not a choice this file makes: trove-infra's
+    # foundation root declares the DKIM key and return-path records that let
+    # Resend send as mail.trovebox.io, so the sender below is the only address
+    # those records authorise and the API key is the credential that matches
+    # them.
+    #
+    # NOT VALIDATED AS REQUIRED IN PRODUCTION, for the ordering reason the Sentry
+    # comment above describes and this setting hits harder. Cloud Run resolves a
+    # secret_key_ref when it creates a revision, so the key cannot be bound to
+    # the service before its Secret Manager container has a payload — and if the
+    # application refused to start without it, the first revision to carry this
+    # code would fail. An empty key therefore disables sending rather than
+    # startup; `app/email.py` is where that degrades loudly.
+    resend_api_key: str = ""
+
+    # RFC 5322 form, because Resend passes it through to the From header
+    # verbatim: without the display name every client shows the raw mailbox.
+    # The subdomain is deliberate — Resend signs and takes bounces under
+    # mail.trovebox.io, leaving the apex's own MX and SPF to whatever ends up
+    # receiving mail for trovebox.io itself.
+    email_from: str = "Trove <noreply@mail.trovebox.io>"
+
     @property
     def is_development(self) -> bool:
         return self.environment == "development"
