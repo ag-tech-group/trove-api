@@ -36,6 +36,13 @@ SENTRY_PII_KEY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Redacted inside any string: email addresses and JWTs (every token this service
+# issues) often sit under names no key pattern would flag.
+_SENSITIVE_VALUE_PATTERNS = (
+    re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
+    re.compile(r"\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"),
+)
+
 # Loggers whose records must never become Sentry events or breadcrumbs.
 #
 # `trove.security` logs every auth event at INFO with `email`, `ip`,
@@ -51,14 +58,20 @@ SENTRY_PII_KEY_PATTERN = re.compile(
 _IGNORED_LOGGERS = ("trove.security",)
 
 
+def _redact_values(text: str) -> str:
+    for pattern in _SENSITIVE_VALUE_PATTERNS:
+        text = pattern.sub("[REDACTED]", text)
+    return text
+
+
 def _scrub_pii(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] | None:
-    """Recursively redact PII-like keys anywhere in a Sentry event.
+    """Recursively redact PII-like keys and values anywhere in a Sentry event.
 
     Sentry events nest dicts and lists arbitrarily — tags, extra,
     request.headers, request.cookies, breadcrumbs, exception values — so the
     scrubber walks the whole tree rather than a fixed set of paths. A key whose
-    name matches has its value replaced with `[REDACTED]`; recursion continues
-    into non-matching keys' values.
+    name matches has its value replaced with `[REDACTED]`; any other string has
+    email addresses and JWTs replaced in place.
     """
 
     def _scrub(obj: Any) -> Any:
@@ -69,6 +82,8 @@ def _scrub_pii(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] | 
             }
         if isinstance(obj, list):
             return [_scrub(item) for item in obj]
+        if isinstance(obj, str):
+            return _redact_values(obj)
         return obj
 
     return _scrub(event)
@@ -98,6 +113,9 @@ def init_sentry() -> None:
         release=settings.sentry_release or None,
         traces_sample_rate=0.0,
         send_default_pii=False,
+        # Frame locals hold messages, payloads and recipients under arbitrary
+        # names that no scrubber can reliably filter.
+        include_local_variables=False,
         before_send=_scrub_pii,
     )
 

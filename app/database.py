@@ -15,6 +15,8 @@ class Base(DeclarativeBase):
 engine = create_async_engine(
     settings.database_url,
     echo=settings.is_development,
+    # Keeps bound values (addresses, hashes, tokens) out of exception text in production.
+    hide_parameters=not settings.is_development,
 )
 
 async_session_maker = async_sessionmaker(
