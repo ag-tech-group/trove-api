@@ -32,6 +32,17 @@ def _settings(**overrides) -> Settings:
     return Settings(**{**defaults, **overrides})
 
 
+def _production_settings(**overrides) -> Settings:
+    """Settings that pass the production validator, for paths that branch on it."""
+    return _settings(
+        environment="production",
+        secret_key="s" * 32,
+        database_url="postgresql+asyncpg://trove:strong-password@db:5432/trove_db",
+        storage_bucket_name="trove-images",
+        **overrides,
+    )
+
+
 class Resend:
     """A stand-in for Resend that records what was actually sent to it.
 
@@ -99,7 +110,7 @@ class TestTemplates:
         Both parts go out on every message, so a client that renders text
         instead of HTML has to be able to complete the flow too.
         """
-        url = "https://trovebox.io/reset-password?token=abc"
+        url = "https://trovebox.io/reset-password#token=abc"
 
         message = password_reset(url=url, expires_in_seconds=3600)
 
@@ -121,13 +132,13 @@ class TestTemplates:
         assert "1 hour" not in half.text
 
     def test_url_is_escaped_into_the_markup(self):
-        """A raw `&` between query parameters would truncate the href.
+        """A raw `&` between parameters would truncate the href.
 
         Only one parameter is sent today, so this guards the helper rather than
         a live bug — the moment a second one is added, an unescaped ampersand
         silently produces a link that drops the token.
         """
-        url = "https://trovebox.io/reset-password?token=abc&next=%2Fitems"
+        url = "https://trovebox.io/reset-password#token=abc&next=%2Fitems"
 
         message = password_reset(url=url, expires_in_seconds=3600)
 
@@ -184,15 +195,23 @@ class TestFrontendLink:
         with patch("app.email.settings", _settings()):
             link = _frontend_link("/reset-password", TOKEN)
 
-        assert link.startswith("https://trovebox.io/reset-password?")
+        assert link.startswith("https://trovebox.io/reset-password#")
         assert "/auth/" not in link
 
-    def test_token_is_query_encoded(self):
+    def test_token_travels_in_the_fragment(self):
+        """Browsers never send the fragment to a server, so it stays out of request logs."""
+        with patch("app.email.settings", _settings()):
+            link = _frontend_link("/reset-password", TOKEN)
+
+        assert "?" not in link
+        assert link.endswith(f"#token={TOKEN}")
+
+    def test_token_is_url_encoded(self):
         """`urlencode`, not interpolation: a token is opaque to this module."""
         with patch("app.email.settings", _settings()):
             link = _frontend_link("/reset-password", "a b&c=d")
 
-        assert link.endswith("?token=a+b%26c%3Dd")
+        assert link.endswith("#token=a+b%26c%3Dd")
 
     def test_no_double_slash_before_the_path(self):
         """`frontend_url` carries no trailing slash, deployed or defaulted.
@@ -240,6 +259,17 @@ class TestSend:
             await send_password_reset_email("a@b.com", TOKEN, expires_in_seconds=3600)
 
         assert resend.sent["from"] == "Trove Dev <dev@example.test>"
+
+    async def test_the_recipient_is_logged_as_a_field_not_text(self, caplog):
+        """A field, not message text, so app/sentry.py can redact it by key."""
+        resend = Resend()
+
+        with sending(resend), caplog.at_level(logging.INFO, logger="app.email"):
+            await send_password_reset_email("a@b.com", TOKEN, expires_in_seconds=3600)
+
+        (record,) = [r for r in caplog.records if r.name == "app.email"]
+        assert record.email == "a@b.com"
+        assert "a@b.com" not in record.getMessage()
 
     async def test_refusal_raises_with_the_provider_reason(self):
         """The body is the only thing that distinguishes one 4xx from another.
@@ -316,16 +346,8 @@ class TestUnconfiguredKey:
         for the token's whole lifetime and the log's whole retention. So the
         body is logged in development and nowhere else.
         """
-        production = _settings(
-            resend_api_key="",
-            environment="production",
-            secret_key="s" * 32,
-            database_url="postgresql+asyncpg://trove:strong-password@db:5432/trove_db",
-            storage_bucket_name="trove-images",
-        )
-
         with (
-            patch("app.email.settings", production),
+            patch("app.email.settings", _production_settings(resend_api_key="")),
             caplog.at_level(logging.DEBUG, logger="app.email"),
         ):
             await send_password_reset_email("a@b.com", TOKEN, expires_in_seconds=3600)
@@ -339,19 +361,23 @@ class TestUnconfiguredKey:
         ERROR is what the Sentry logging integration captures as an event, so
         this surfaces as an alert rather than as a support request weeks later.
         """
-        production = _settings(
-            resend_api_key="",
-            environment="production",
-            secret_key="s" * 32,
-            database_url="postgresql+asyncpg://trove:strong-password@db:5432/trove_db",
-            storage_bucket_name="trove-images",
-        )
-
         with (
-            patch("app.email.settings", production),
+            patch("app.email.settings", _production_settings(resend_api_key="")),
             caplog.at_level(logging.DEBUG, logger="app.email"),
         ):
             await send_password_reset_email("a@b.com", TOKEN, expires_in_seconds=3600)
 
         levels = {r.levelno for r in caplog.records if r.name == "app.email"}
         assert logging.ERROR in levels
+
+    async def test_outside_development_the_recipient_is_a_field_not_text(self, caplog):
+        """Still recorded for the operator, but where a scrubber can find it by name."""
+        with (
+            patch("app.email.settings", _production_settings(resend_api_key="")),
+            caplog.at_level(logging.DEBUG, logger="app.email"),
+        ):
+            await send_password_reset_email("a@b.com", TOKEN, expires_in_seconds=3600)
+
+        (record,) = [r for r in caplog.records if r.name == "app.email"]
+        assert record.email == "a@b.com"
+        assert "a@b.com" not in record.getMessage()

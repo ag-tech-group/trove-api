@@ -89,12 +89,15 @@ def _frontend_link(path: str, token: str) -> str:
     or just a confirmation — and the browser posts it back to `/auth/*` from
     there. A link straight to an API endpoint would be a GET that mutates.
 
+    The token goes in the fragment, which browsers never send to a server, so it
+    stays out of request logs and Referer headers.
+
     `frontend_url` carries no trailing slash; `app/config.py`'s default and the
     deployed value agree on that, so the leading slash on `path` is the only
     separator. `urlencode` rather than interpolation so a token containing a
-    character that means something in a query string cannot break the link.
+    character that means something in a URL cannot break the link.
     """
-    return f"{settings.frontend_url}{path}?{urlencode({'token': token})}"
+    return f"{settings.frontend_url}{path}#{urlencode({'token': token})}"
 
 
 async def _send(to: str, message: RenderedEmail) -> None:
@@ -136,7 +139,8 @@ async def _send(to: str, message: RenderedEmail) -> None:
             f"Resend refused the message with {response.status_code}: {response.text}"
         )
 
-    logger.info("Sent %r to %s", message.subject, to)
+    # A field rather than message text, so app/sentry.py can redact it by key.
+    logger.info("Sent %r", message.subject, extra={"email": to})
 
 
 def _log_unsent(*, to: str, message: RenderedEmail) -> None:
@@ -167,8 +171,8 @@ def _log_unsent(*, to: str, message: RenderedEmail) -> None:
         )
     else:
         logger.error(
-            "RESEND_API_KEY is empty — no email was sent to %s (%r). Bind the Resend "
-            "secret to the service; until then every password reset silently fails.",
-            to,
+            "RESEND_API_KEY is empty — a %r email was not sent. Bind the Resend secret "
+            "to the service; until then every password reset silently fails.",
             message.subject,
+            extra={"email": to},
         )
