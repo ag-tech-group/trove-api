@@ -8,12 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Item, User
 from app.models.image import Image
 from app.models.mark import Mark
+from tests.image_factory import make_image
 
 
-def _fake_file(content_type="image/jpeg", size=100, filename="test.jpg"):
-    """Create a fake file tuple for upload."""
-    data = b"x" * size
-    return ("file", (filename, BytesIO(data), content_type))
+def _image_file(content_type="image/jpeg", filename="test.jpg", data=None):
+    """Create an upload tuple carrying a real JPEG, unless data is given."""
+    return ("file", (filename, BytesIO(make_image() if data is None else data), content_type))
 
 
 @pytest.fixture(autouse=True)
@@ -25,7 +25,7 @@ def mock_storage():
         patch("app.routers.marks.delete_files", new_callable=AsyncMock),
     ):
         mock_upload.return_value = "https://r2.example.com/test-key"
-        yield
+        yield mock_upload
 
 
 @pytest.fixture
@@ -57,22 +57,30 @@ async def test_list_mark_images_empty(
 
 @pytest.mark.asyncio
 async def test_upload_mark_image(
-    client: AsyncClient, session: AsyncSession, test_user: User, auth_client, item_and_mark
+    client: AsyncClient,
+    session: AsyncSession,
+    test_user: User,
+    auth_client,
+    item_and_mark,
+    mock_storage,
 ):
-    """Test uploading an image to a mark."""
+    """Test uploading an image to a mark: the record describes the stored WebP."""
     item, mark = item_and_mark
 
     response = await client.post(
         f"/items/{item.id}/marks/{mark.id}/images",
-        files=[_fake_file()],
+        files=[_image_file()],
     )
     assert response.status_code == 201
     data = response.json()
+    stored, key, content_type = mock_storage.call_args.args
+    assert key == f"marks/{mark.id}/{data['id']}.webp"
+    assert content_type == "image/webp"
     assert data["mark_id"] == mark.id
     assert data["item_id"] is None
-    assert data["filename"] == "test.jpg"
-    assert data["content_type"] == "image/jpeg"
-    assert data["size_bytes"] == 100
+    assert data["filename"] == "test.webp"
+    assert data["content_type"] == "image/webp"
+    assert data["size_bytes"] == len(stored)
     assert data["position"] == 0
 
 
@@ -100,7 +108,7 @@ async def test_upload_mark_image_max_count(
 
     response = await client.post(
         f"/items/{item.id}/marks/{mark.id}/images",
-        files=[_fake_file()],
+        files=[_image_file()],
     )
     assert response.status_code == 400
     assert "Maximum" in response.json()["detail"]
@@ -115,7 +123,7 @@ async def test_upload_mark_image_invalid_type(
 
     response = await client.post(
         f"/items/{item.id}/marks/{mark.id}/images",
-        files=[_fake_file(content_type="application/pdf", filename="doc.pdf")],
+        files=[_image_file(content_type="application/pdf", filename="doc.pdf")],
     )
     assert response.status_code == 400
     assert "not allowed" in response.json()["detail"]

@@ -25,6 +25,7 @@ dependencies = [
     # imports a package directly should be the reason it is locked, not a
     # side effect of something else needing it.
     "httpx>=0.27.0",
+    "pillow>=12.3.0",
 ]
 
 [dependency-groups]
