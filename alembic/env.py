@@ -14,6 +14,8 @@ from app.models import (  # noqa: F401
     Collection,
     Image,
     Import,
+    ImportEntry,
+    ImportPhoto,
     Item,
     ItemNote,
     Mark,

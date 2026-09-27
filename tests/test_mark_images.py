@@ -20,7 +20,7 @@ def _image_file(content_type="image/jpeg", filename="test.jpg", data=None):
 def mock_storage():
     """Mock R2 storage calls for all tests in this module."""
     with (
-        patch("app.routers.mark_images.upload_file", new_callable=AsyncMock) as mock_upload,
+        patch("app.images.upload_file", new_callable=AsyncMock) as mock_upload,
         patch("app.routers.mark_images.delete_file", new_callable=AsyncMock),
         patch("app.routers.marks.delete_files", new_callable=AsyncMock),
     ):

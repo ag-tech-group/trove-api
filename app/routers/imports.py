@@ -7,11 +7,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import current_active_user
 from app.database import get_async_session
+from app.image_utils import MAX_FILE_SIZE
 from app.imports.catalogit import ImportFileError, plan_import, read_entries, read_media_index
+from app.imports.commit import (
+    already_imported_ids,
+    attach_photo,
+    commit_import,
+    finish_import,
+    photo_progress,
+    undo_import,
+)
 from app.imports.plan import ImportPlan
-from app.models import User
+from app.models import Image, User
 from app.models.data_import import Import
-from app.schemas.data_import import ImportRead, ImportSource, ImportStatus, ImportSummary
+from app.schemas.data_import import (
+    ImportCommit,
+    ImportPhotoRead,
+    ImportRead,
+    ImportSource,
+    ImportStatus,
+    ImportSummary,
+)
+from app.schemas.image import ImageRead
+from app.storage import delete_files
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 
@@ -46,6 +64,7 @@ async def create_import(
     except ImportFileError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    earlier = await already_imported_ids(session, str(user.id), source.value)
     record = Import(
         user_id=str(user.id),
         source=source.value,
@@ -53,12 +72,15 @@ async def create_import(
         entries_filename=entries.filename or "entries",
         media_index_filename=media_index.filename if media_index else None,
         source_data={"entries": parsed_entries, "media": parsed_media},
-        report=plan.report(),
+        report={
+            **plan.report(),
+            "already_imported": sum(item.external_id in earlier for item in plan.items),
+        },
     )
     session.add(record)
     await session.commit()
     await session.refresh(record)
-    return record
+    return await _import_read(session, record)
 
 
 @router.get("", response_model=list[ImportSummary])
@@ -79,8 +101,66 @@ async def get_import(
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
-    """Get an import and its preview."""
-    return await _get_user_import(import_id, user, session)
+    """Get an import, its preview, and how far its photos have got."""
+    return await _import_read(session, await _get_user_import(import_id, user, session))
+
+
+@router.post("/{import_id}/commit", response_model=ImportRead)
+async def commit(
+    import_id: UUID,
+    options: ImportCommit,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Create the items the preview lists, then wait for their photos.
+
+    Items are grouped into collections, and tagged, by `groups`, keyed by the grouping
+    keys the preview reported. The response's `pending_photos` names the files to
+    upload to `POST /imports/{id}/photos`.
+    """
+    record = await _get_user_import(import_id, user, session)
+    await commit_import(session, record, options)
+    await session.refresh(record)
+    return await _import_read(session, record)
+
+
+@router.post("/{import_id}/photos", response_model=ImportPhotoRead)
+async def upload_photo(
+    import_id: UUID,
+    file: UploadFile = File(
+        ..., description="One photo from the export, sent under its own file name."
+    ),
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Upload one of the photos the import is waiting for; it is matched by file name.
+
+    Uploading a photo that is already in place changes nothing. A photo that fails to
+    process is marked failed and can be sent again.
+    """
+    record = await _get_user_import(import_id, user, session)
+    data = await _read(file, MAX_FILE_SIZE, "photo")
+    photo = await attach_photo(session, record, file.filename, data, str(user.id))
+    image = await session.get(Image, photo.image_id) if photo.image_id else None
+    return ImportPhotoRead(
+        filename=photo.filename,
+        status=photo.status,
+        error=photo.error,
+        image=ImageRead.model_validate(image) if image else None,
+    )
+
+
+@router.post("/{import_id}/finish", response_model=ImportRead)
+async def finish(
+    import_id: UUID,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Stop waiting for photos: those not uploaded, or that failed, are skipped."""
+    record = await _get_user_import(import_id, user, session)
+    await finish_import(session, record)
+    await session.refresh(record)
+    return await _import_read(session, record)
 
 
 @router.delete("/{import_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -89,10 +169,16 @@ async def delete_import(
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
-    """Discard an import's preview."""
+    """Undo an import: discard its preview, or delete everything it created.
+
+    Items it created are deleted even if edited since. Collections and tags it created
+    are deleted only if nothing else uses them.
+    """
     record = await _get_user_import(import_id, user, session)
-    await session.delete(record)
+    storage_keys = await undo_import(session, record)
     await session.commit()
+    # Best-effort object storage cleanup
+    await delete_files(storage_keys)
 
 
 def _plan(entries_data: bytes, media_data: bytes) -> tuple[list[dict], list[dict], ImportPlan]:
@@ -111,6 +197,13 @@ async def _read(file: UploadFile, limit: int, what: str) -> bytes:
     if not data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"The {what} is empty")
     return data
+
+
+async def _import_read(session: AsyncSession, record: Import) -> ImportRead:
+    read = ImportRead.model_validate(record)
+    if record.status != ImportStatus.PREVIEW:
+        read.photos, read.pending_photos, read.failed_photos = await photo_progress(session, record)
+    return read
 
 
 async def _get_user_import(import_id: UUID, user: User, session: AsyncSession) -> Import:
