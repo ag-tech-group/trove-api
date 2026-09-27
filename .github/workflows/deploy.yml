@@ -12,6 +12,7 @@ env:
   GCP_PROJECT: trove-prod-485922
   GCP_REGION: us-east1
   SERVICE_NAME: trove-api
+  MIGRATE_JOB: trove-api-migrate
   IMAGE: us-east1-docker.pkg.dev/trove-prod-485922/trove-api/trove-api
 
 jobs:
@@ -44,6 +45,32 @@ jobs:
           docker push $IMAGE:latest
         env:
           IMAGE: ${{ env.IMAGE }}
+
+      # MIGRATIONS RUN FIRST, AND GATE THE DEPLOY. trove-api-migrate is declared
+      # in trove-infra (docs/adr/0008) with the service's identity and
+      # environment, and runs `alembic upgrade head`. `--wait` fails this step
+      # when the migration fails, so the service keeps its current revision
+      # instead of meeting a schema it doesn't expect. That revision serves
+      # against the migrated schema until the update below completes, so every
+      # migration must work with the code already running.
+      #
+      # The job update must set only the image, for the reason given on the
+      # service update below.
+      - name: Migrate the database
+        run: |
+          gcloud run jobs update $MIGRATE_JOB \
+            --image $IMAGE:$GITHUB_SHA \
+            --region $GCP_REGION \
+            --project $GCP_PROJECT
+          gcloud run jobs execute $MIGRATE_JOB \
+            --wait \
+            --region $GCP_REGION \
+            --project $GCP_PROJECT
+        env:
+          IMAGE: ${{ env.IMAGE }}
+          MIGRATE_JOB: ${{ env.MIGRATE_JOB }}
+          GCP_REGION: ${{ env.GCP_REGION }}
+          GCP_PROJECT: ${{ env.GCP_PROJECT }}
 
       # THIS COMMAND MUST KEEP SETTING ONLY THE IMAGE. Do not add --set-env-vars,
       # --memory, --cpu, --min-instances, --service-account or anything else.
