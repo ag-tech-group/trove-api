@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any
@@ -9,8 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.image import ImageRead
 from app.schemas.item_note import ItemNoteRead
 from app.schemas.mark import MarkRead
+from app.schemas.partial_date import PartialDate
 from app.schemas.provenance_entry import ProvenanceEntryRead
 from app.schemas.tag import TagRead
+from app.schemas.valuation import ValuationRead
 
 
 class Condition(StrEnum):
@@ -23,19 +25,33 @@ class Condition(StrEnum):
     UNKNOWN = "unknown"
 
 
+class AcquisitionMethod(StrEnum):
+    """How the owner came to have an item."""
+
+    PURCHASE = "purchase"
+    GIFT = "gift"
+    INHERITANCE = "inheritance"
+    TRADE = "trade"
+    COMMISSION = "commission"
+    OTHER = "other"
+
+
 class ItemBase(BaseModel):
     """Base schema for Item."""
 
     # Basic Info
     name: str = Field(..., max_length=200)
+    reference_number: str | None = Field(default=None, max_length=100)
     description: str | None = Field(default=None, max_length=5000)
     condition: Condition | None = Field(default=None)
     location: str | None = Field(default=None, max_length=200)
 
     # Financials
-    acquisition_date: date | None = Field(default=None)
+    acquisition_date: PartialDate | None = Field(default=None)
+    acquisition_method: AcquisitionMethod | None = Field(default=None)
     acquisition_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     acquisition_source: str | None = Field(default=None, max_length=200)
+    acquisition_place: str | None = Field(default=None, max_length=200)
     estimated_value: Decimal | None = Field(default=None, ge=0, decimal_places=2)
 
     # Provenance
@@ -47,6 +63,8 @@ class ItemBase(BaseModel):
     height_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     width_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     depth_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    length_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    diameter_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     weight_kg: Decimal | None = Field(default=None, ge=0, decimal_places=3)
     materials: str | None = Field(default=None, max_length=500)
 
@@ -66,6 +84,7 @@ class ItemUpdate(BaseModel):
 
     # Basic Info
     name: str | None = Field(default=None, max_length=200)
+    reference_number: str | None = Field(default=None, max_length=100)
     description: str | None = Field(default=None, max_length=5000)
     condition: Condition | None = Field(default=None)
     location: str | None = Field(default=None, max_length=200)
@@ -77,9 +96,11 @@ class ItemUpdate(BaseModel):
     tag_ids: list[UUID] | None = Field(default=None)
 
     # Financials
-    acquisition_date: date | None = Field(default=None)
+    acquisition_date: PartialDate | None = Field(default=None)
+    acquisition_method: AcquisitionMethod | None = Field(default=None)
     acquisition_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     acquisition_source: str | None = Field(default=None, max_length=200)
+    acquisition_place: str | None = Field(default=None, max_length=200)
     estimated_value: Decimal | None = Field(default=None, ge=0, decimal_places=2)
 
     # Provenance
@@ -91,6 +112,8 @@ class ItemUpdate(BaseModel):
     height_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     width_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     depth_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    length_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    diameter_cm: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     weight_kg: Decimal | None = Field(default=None, ge=0, decimal_places=3)
     materials: str | None = Field(default=None, max_length=500)
 
@@ -110,6 +133,7 @@ class ItemRead(ItemBase):
     tags: list[TagRead] = Field(default_factory=list)
     marks: list[MarkRead] = Field(default_factory=list)
     provenance_entries: list[ProvenanceEntryRead] = Field(default_factory=list)
+    valuations: list[ValuationRead] = Field(default_factory=list)
     item_notes: list[ItemNoteRead] = Field(default_factory=list)
     images: list[ImageRead] = Field(default_factory=list)
     created_at: datetime

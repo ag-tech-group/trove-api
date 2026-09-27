@@ -13,6 +13,9 @@ from app.type_registry import validate_type_fields
 
 router = APIRouter(prefix="/items", tags=["items"])
 
+# Stored as their string values rather than as the enum members the schemas parse.
+_ENUM_FIELDS = ("condition", "acquisition_method")
+
 
 def _escape_like(value: str) -> str:
     """Escape LIKE wildcard characters so they are matched literally."""
@@ -42,7 +45,7 @@ async def list_items(
     collection_id: UUID | None = Query(default=None, description="Filter by collection"),
     tag: str | None = Query(default=None, description="Filter by tag name"),
     search: str | None = Query(
-        default=None, max_length=200, description="Search in name and description"
+        default=None, max_length=200, description="Search in name, description and reference number"
     ),
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
@@ -63,6 +66,7 @@ async def list_items(
             or_(
                 Item.name.ilike(search_term, escape="\\"),
                 Item.description.ilike(search_term, escape="\\"),
+                Item.reference_number.ilike(search_term, escape="\\"),
             )
         )
 
@@ -122,8 +126,9 @@ async def create_item(
     item_data = data.model_dump(exclude={"tag_ids"})
     if item_data.get("collection_id"):
         item_data["collection_id"] = str(item_data["collection_id"])
-    if item_data.get("condition"):
-        item_data["condition"] = item_data["condition"].value
+    for field in _ENUM_FIELDS:
+        if item_data.get(field):
+            item_data[field] = item_data[field].value
 
     # Validate type_fields against the collection's type
     if item_data.get("type_fields") and collection:
@@ -187,9 +192,9 @@ async def update_item(
             )
         update_data["collection_id"] = str(update_data["collection_id"])
 
-    # Convert condition enum to string value
-    if "condition" in update_data and update_data["condition"] is not None:
-        update_data["condition"] = update_data["condition"].value
+    for field in _ENUM_FIELDS:
+        if update_data.get(field) is not None:
+            update_data[field] = update_data[field].value
 
     # Validate type_fields against the item's collection type
     if "type_fields" in update_data and update_data["type_fields"] is not None:

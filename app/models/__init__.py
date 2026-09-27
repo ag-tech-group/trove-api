@@ -8,9 +8,11 @@ from app.models.provenance_entry import ProvenanceEntry
 from app.models.refresh_token import RefreshToken
 from app.models.tag import Tag, item_tags
 from app.models.user import User
+from app.models.valuation import Valuation
 
 __all__ = [
     "User",
+    "Valuation",
     "Collection",
     "Image",
     "Item",

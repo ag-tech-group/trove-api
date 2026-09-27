@@ -86,6 +86,7 @@ Once running, visit:
 | POST   | `/auth/jwt/logout`           | Revoke the refresh token family and clear cookies |
 | POST   | `/auth/refresh`              | Exchange the refresh cookie for a new access token|
 | GET    | `/auth/me`                   | Current user                                      |
+| PATCH  | `/auth/me`                   | Change own settings (`preferred_units`)           |
 | POST   | `/auth/forgot-password`      | Email a password reset link (always 202)          |
 | POST   | `/auth/reset-password`       | Consume a reset token and set a new password      |
 | POST   | `/auth/request-verify-token` | Email an address-confirmation link (always 202)   |
@@ -122,7 +123,7 @@ so registering grants immediate access.
 **Item List Filters:**
 - `collection_id` - Filter by collection
 - `category` - Filter by category
-- `search` - Search in name and description
+- `search` - Search in name, description and reference number
 
 ### Categories
 
@@ -139,13 +140,20 @@ so registering grants immediate access.
 - `created_at`, `updated_at` - Timestamps
 
 ### Item
-- **Basic Info:** name, description, category, condition, location
-- **Financials:** acquisition_date, acquisition_price, estimated_value
-- **Provenance:** artist_maker, origin, date_era, provenance_notes
-- **Physical:** height_cm, width_cm, depth_cm, weight_kg, materials
-- **Metadata:** notes, created_at, updated_at
+- **Basic Info:** name, description, reference_number, condition, location
+- **Acquisition:** acquisition_date, acquisition_method, acquisition_price, acquisition_source, acquisition_place
+- **Value:** estimated_value (the owner's current figure), plus a history of valuations (`/items/{id}/valuations`)
+- **Provenance:** artist_maker, origin, date_era
+- **Physical:** height_cm, width_cm, depth_cm, length_cm, diameter_cm, weight_kg, materials
+- **Metadata:** created_at, updated_at
 
 **Condition Options:** excellent, good, fair, poor, unknown
+
+**Acquisition Methods:** purchase, gift, inheritance, trade, commission, other
+
+Dates that may be imprecise (`acquisition_date`, a valuation's `valued_on`) are ISO
+8601 at the precision known: `1998`, `1998-06` or `1998-06-15`. Measurements are
+stored metric; a user's `preferred_units` only changes how they are shown.
 
 ## Database Migrations
 

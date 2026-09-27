@@ -81,6 +81,7 @@ async def test_upload_mark_image(
     assert data["filename"] == "test.webp"
     assert data["content_type"] == "image/webp"
     assert data["size_bytes"] == len(stored)
+    assert (data["width"], data["height"]) == (64, 48)
     assert data["position"] == 0
 
 
@@ -231,3 +232,31 @@ async def test_mark_images_in_mark_response(
     assert len(marks) == 1
     assert len(marks[0]["images"]) == 1
     assert marks[0]["images"][0]["filename"] == "test.jpg"
+
+
+@pytest.mark.asyncio
+async def test_update_mark_image_caption(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client, item_and_mark
+):
+    """Test captioning an image of a mark."""
+    item, mark = item_and_mark
+    img = Image(
+        user_id=str(test_user.id),
+        mark_id=mark.id,
+        filename="mark.webp",
+        storage_key=f"marks/{mark.id}/mark.webp",
+        url="https://r2.example.com/mark.webp",
+        content_type="image/webp",
+        size_bytes=100,
+        position=0,
+    )
+    session.add(img)
+    await session.commit()
+    await session.refresh(img)
+
+    response = await client.patch(
+        f"/items/{item.id}/marks/{mark.id}/images/{img.id}",
+        json={"caption": "Hallmark, raking light"},
+    )
+    assert response.status_code == 200
+    assert response.json()["caption"] == "Hallmark, raking light"
