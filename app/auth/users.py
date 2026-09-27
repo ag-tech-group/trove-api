@@ -70,6 +70,54 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, UUID]):
             )
         return user
 
+    async def oauth_callback(
+        self,
+        oauth_name: str,
+        access_token: str,
+        account_id: str,
+        account_email: str,
+        expires_at: int | None = None,
+        refresh_token: str | None = None,
+        request: Request | None = None,
+        *,
+        associate_by_email: bool = False,
+        is_verified_by_default: bool = False,
+    ) -> User:
+        """Sign in through an OAuth provider, which verifies the account it reaches.
+
+        Linking by email trusts the provider to have verified the address, so an
+        unverified account reached that way is marked verified, and its password
+        and sessions, which never proved the address, stop working.
+        """
+        user = await super().oauth_callback(
+            oauth_name,
+            access_token,
+            account_id,
+            account_email,
+            expires_at,
+            refresh_token,
+            request,
+            associate_by_email=associate_by_email,
+            is_verified_by_default=is_verified_by_default,
+        )
+        if associate_by_email and not user.is_verified:
+            user = await self.user_db.update(
+                user,
+                {
+                    "is_verified": True,
+                    "hashed_password": self.password_helper.hash(self.password_helper.generate()),
+                },
+            )
+            await self._revoke_refresh_tokens(user)
+            log_security_event(
+                SecurityEvent.OAUTH_ACCOUNT_VERIFIED,
+                request=request,
+                user_id=str(user.id),
+                email=user.email,
+                detail=f"provider={oauth_name}; password replaced, sessions revoked",
+            )
+        return user
+
     async def on_after_forgot_password(
         self, user: User, token: str, request: Request | None = None
     ):
