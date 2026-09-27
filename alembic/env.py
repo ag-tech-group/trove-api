@@ -21,6 +21,7 @@ from app.models import (  # noqa: F401
     RefreshToken,
     Tag,
     User,
+    Valuation,
 )
 
 # this is the Alembic Config object, which provides

@@ -1,8 +1,8 @@
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import JSON, Date, DateTime, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import JSON, DateTime, ForeignKey, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,14 +35,20 @@ class Item(Base):
 
     # Basic Info
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    # The owner's own catalog or inventory number. Not unique: real catalogs
+    # have duplicates, and refusing them would refuse the catalog.
+    reference_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     condition: Mapped[str | None] = mapped_column(String(20), nullable=True)
     location: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     # Financials
-    acquisition_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # A partial ISO date; see app/schemas/partial_date.py.
+    acquisition_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    acquisition_method: Mapped[str | None] = mapped_column(String(20), nullable=True)
     acquisition_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     acquisition_source: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    acquisition_place: Mapped[str | None] = mapped_column(String(200), nullable=True)
     estimated_value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
 
     # Provenance
@@ -54,6 +60,8 @@ class Item(Base):
     height_cm: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     width_cm: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     depth_cm: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    length_cm: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    diameter_cm: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(10, 3), nullable=True)
     materials: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
@@ -89,6 +97,13 @@ class Item(Base):
         back_populates="item",
         lazy="selectin",
         order_by="ProvenanceEntry.created_at",
+        cascade="all, delete-orphan",
+    )
+    valuations = relationship(
+        "Valuation",
+        back_populates="item",
+        lazy="selectin",
+        order_by="Valuation.created_at",
         cascade="all, delete-orphan",
     )
     item_notes = relationship(

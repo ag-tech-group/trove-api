@@ -71,6 +71,7 @@ async def test_upload_item_image(
     assert data["filename"] == "test.webp"
     assert data["content_type"] == "image/webp"
     assert data["size_bytes"] == len(stored)
+    assert (data["width"], data["height"]) == (64, 48)
     assert data["position"] == 0
     assert data["url"] == "https://r2.example.com/test-key"
 
@@ -286,3 +287,81 @@ async def test_upload_png_and_webp(
         assert response.status_code == 201
         assert response.json()["content_type"] == "image/webp"
         assert response.json()["filename"] == "img.webp"
+
+
+async def _stored_image(session: AsyncSession, user: User, item: Item) -> Image:
+    img = Image(
+        user_id=str(user.id),
+        item_id=item.id,
+        filename="test.webp",
+        storage_key=f"items/{item.id}/test.webp",
+        url="https://r2.example.com/test.webp",
+        content_type="image/webp",
+        size_bytes=100,
+        position=0,
+    )
+    session.add(img)
+    await session.commit()
+    await session.refresh(img)
+    return img
+
+
+@pytest.mark.asyncio
+async def test_update_item_image_caption_and_description(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test setting an image's caption and description, then clearing the caption."""
+    item = Item(user_id=str(test_user.id), name="Item")
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+    img = await _stored_image(session, test_user, item)
+
+    response = await client.patch(
+        f"/items/{item.id}/images/{img.id}",
+        json={"caption": "Maker's mark on the base", "description": "Stamped, partly worn."},
+    )
+    assert response.status_code == 200
+    assert response.json()["caption"] == "Maker's mark on the base"
+    assert response.json()["description"] == "Stamped, partly worn."
+
+    response = await client.patch(f"/items/{item.id}/images/{img.id}", json={"caption": None})
+    assert response.json()["caption"] is None
+    assert response.json()["description"] == "Stamped, partly worn."
+
+
+@pytest.mark.asyncio
+async def test_update_item_image_rejects_an_overlong_caption(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that captions stay short; longer text belongs in the description."""
+    item = Item(user_id=str(test_user.id), name="Item")
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+    img = await _stored_image(session, test_user, item)
+
+    response = await client.patch(f"/items/{item.id}/images/{img.id}", json={"caption": "x" * 501})
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_item_image_not_found_or_not_yours(
+    client: AsyncClient, session: AsyncSession, test_user: User, other_user: User, auth_client
+):
+    """Test that a missing image, or one on another user's item, is a 404."""
+    item = Item(user_id=str(test_user.id), name="Item")
+    other_item = Item(user_id=str(other_user.id), name="Other Item")
+    session.add_all([item, other_item])
+    await session.commit()
+    await session.refresh(other_item)
+    other_img = await _stored_image(session, other_user, other_item)
+
+    missing = await client.patch(
+        f"/items/{item.id}/images/00000000-0000-0000-0000-000000000000", json={"caption": "x"}
+    )
+    theirs = await client.patch(
+        f"/items/{other_item.id}/images/{other_img.id}", json={"caption": "x"}
+    )
+    assert missing.status_code == 404
+    assert theirs.status_code == 404

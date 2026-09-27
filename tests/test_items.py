@@ -636,3 +636,106 @@ async def test_collection_name_null_without_collection(
     assert response.status_code == 200
     data = response.json()
     assert data["collection_name"] is None
+
+
+@pytest.mark.asyncio
+async def test_create_item_with_catalog_fields(client: AsyncClient, test_user: User, auth_client):
+    """Test the fields catalogs carry: the owner's own number, and how and where it was acquired."""
+    response = await client.post(
+        "/items",
+        json={
+            "name": "Tea caddy",
+            "reference_number": "A-01",
+            "acquisition_date": "1998",
+            "acquisition_method": "gift",
+            "acquisition_place": "Estate sale",
+            "length_cm": "12.70",
+            "diameter_cm": "8.89",
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["reference_number"] == "A-01"
+    assert data["acquisition_date"] == "1998"
+    assert data["acquisition_method"] == "gift"
+    assert data["acquisition_place"] == "Estate sale"
+    assert data["length_cm"] == "12.70"
+    assert data["diameter_cm"] == "8.89"
+    assert data["valuations"] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["1998", "1998-06", "1998-06-15", "2024-02-29"])
+async def test_acquisition_date_accepts_the_precision_known(
+    client: AsyncClient, test_user: User, auth_client, value
+):
+    """Test that a year, a month or a full date is kept exactly as given."""
+    response = await client.post("/items", json={"name": "Item", "acquisition_date": value})
+    assert response.status_code == 201
+    assert response.json()["acquisition_date"] == value
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "value",
+    [
+        "98",
+        "1998-6",
+        "1998-13",
+        "1998-02-30",
+        "2023-02-29",
+        "0000",
+        "1998/06/15",
+        "1998-06-15T10:00",
+    ],
+)
+async def test_acquisition_date_rejects_what_is_not_a_date(
+    client: AsyncClient, test_user: User, auth_client, value
+):
+    """Test that malformed and impossible dates are refused, not stored as text."""
+    response = await client.post("/items", json={"name": "Item", "acquisition_date": value})
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_acquisition_method_is_validated(client: AsyncClient, test_user: User, auth_client):
+    """Test that an unknown acquisition method is refused."""
+    response = await client.post("/items", json={"name": "Item", "acquisition_method": "found"})
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_and_clear_acquisition_method(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test setting the acquisition method on an existing item, then clearing it."""
+    item = Item(user_id=str(test_user.id), name="Item")
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+
+    response = await client.patch(f"/items/{item.id}", json={"acquisition_method": "inheritance"})
+    assert response.status_code == 200
+    assert response.json()["acquisition_method"] == "inheritance"
+
+    response = await client.patch(f"/items/{item.id}", json={"acquisition_method": None})
+    assert response.status_code == 200
+    assert response.json()["acquisition_method"] is None
+
+
+@pytest.mark.asyncio
+async def test_search_matches_reference_number(
+    client: AsyncClient, session: AsyncSession, test_user: User, auth_client
+):
+    """Test that search finds an item by its reference number."""
+    session.add_all(
+        [
+            Item(user_id=str(test_user.id), name="Numbered", reference_number="B-07"),
+            Item(user_id=str(test_user.id), name="Unnumbered"),
+        ]
+    )
+    await session.commit()
+
+    response = await client.get("/items", params={"search": "b-07"})
+    assert response.status_code == 200
+    assert [item["name"] for item in response.json()] == ["Numbered"]

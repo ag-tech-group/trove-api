@@ -5,11 +5,13 @@ from limits import RateLimitItem, parse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import auth_backend, current_active_user, fastapi_users
 from app.auth.oauth import google_oauth_router
 from app.auth.security_logging import SecurityEvent, log_security_event
 from app.config import settings
+from app.database import get_async_session
 from app.logging import setup_logging
 from app.models.user import User
 from app.routers import (
@@ -22,9 +24,10 @@ from app.routers import (
     marks_router,
     provenance_router,
     tags_router,
+    valuations_router,
 )
 from app.routers.auth_refresh import router as auth_refresh_router
-from app.schemas.user import UserCreate, UserRead
+from app.schemas.user import UserCreate, UserPreferencesUpdate, UserRead
 from app.sentry import init_sentry
 
 # --- Observability ---
@@ -99,6 +102,21 @@ app.include_router(google_oauth_router)
 @app.get("/auth/me", response_model=UserRead, tags=["auth"])
 async def get_current_user(user: User = Depends(current_active_user)):
     return user
+
+
+@app.patch("/auth/me", response_model=UserRead, tags=["auth"])
+async def update_current_user(
+    data: UserPreferencesUpdate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Change the current user's own settings. Credentials are changed elsewhere."""
+    db_user = await session.get(User, user.id)
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(db_user, field, value)
+    await session.commit()
+    await session.refresh(db_user)
+    return db_user
 
 
 # Path-specific rate limits for auth endpoints
@@ -199,6 +217,7 @@ app.include_router(item_images_router)
 app.include_router(mark_images_router)
 app.include_router(provenance_router)
 app.include_router(item_notes_router)
+app.include_router(valuations_router)
 
 
 @app.get("/")

@@ -15,7 +15,7 @@ from app.image_utils import (
 from app.models import Item, User
 from app.models.image import Image
 from app.models.mark import Mark
-from app.schemas.image import ImageRead
+from app.schemas.image import ImageRead, ImageUpdate
 from app.storage import delete_file, upload_file
 
 router = APIRouter(prefix="/items/{item_id}/marks/{mark_id}/images", tags=["mark-images"])
@@ -112,8 +112,39 @@ async def upload_mark_image(
         content_type=processed.content_type,
         size_bytes=len(processed.data),
         position=position,
+        width=processed.width,
+        height=processed.height,
     )
     session.add(image)
+    await session.commit()
+    await session.refresh(image)
+    return image
+
+
+@router.patch("/{image_id}", response_model=ImageRead)
+async def update_mark_image(
+    image_id: UUID,
+    data: ImageUpdate,
+    mark: Mark = Depends(_get_user_mark),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Update an image's caption or description."""
+    stmt = select(Image).where(
+        Image.id == str(image_id),
+        Image.mark_id == mark.id,
+    )
+    result = await session.execute(stmt)
+    image = result.scalar_one_or_none()
+
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(image, field, value)
+
     await session.commit()
     await session.refresh(image)
     return image

@@ -7,6 +7,7 @@ from app.routers.mark_images import router as mark_images_router
 from app.routers.marks import router as marks_router
 from app.routers.provenance import router as provenance_router
 from app.routers.tags import router as tags_router
+from app.routers.valuations import router as valuations_router
 
 __all__ = [
     "collection_types_router",
@@ -18,4 +19,5 @@ __all__ = [
     "marks_router",
     "provenance_router",
     "tags_router",
+    "valuations_router",
 ]
