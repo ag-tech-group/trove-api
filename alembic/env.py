@@ -13,6 +13,7 @@ from app.database import Base
 from app.models import (  # noqa: F401
     Collection,
     Image,
+    Import,
     Item,
     ItemNote,
     Mark,
