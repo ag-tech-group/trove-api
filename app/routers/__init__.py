@@ -1,5 +1,6 @@
 from app.routers.collection_types import router as collection_types_router
 from app.routers.collections import router as collections_router
+from app.routers.imports import router as imports_router
 from app.routers.item_images import router as item_images_router
 from app.routers.item_notes import router as item_notes_router
 from app.routers.items import router as items_router
@@ -12,6 +13,7 @@ from app.routers.valuations import router as valuations_router
 __all__ = [
     "collection_types_router",
     "collections_router",
+    "imports_router",
     "item_images_router",
     "item_notes_router",
     "items_router",
