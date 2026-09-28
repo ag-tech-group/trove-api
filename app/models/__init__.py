@@ -1,5 +1,5 @@
 from app.models.collection import Collection
-from app.models.data_import import Import
+from app.models.data_import import Import, ImportEntry, ImportPhoto
 from app.models.image import Image
 from app.models.item import Item
 from app.models.item_note import ItemNote
@@ -17,6 +17,8 @@ __all__ = [
     "Collection",
     "Image",
     "Import",
+    "ImportEntry",
+    "ImportPhoto",
     "Item",
     "ItemNote",
     "Mark",

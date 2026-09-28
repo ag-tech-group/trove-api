@@ -1,21 +1,17 @@
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_session
-from app.image_utils import (
-    MAX_ITEM_IMAGES,
-    process_image,
-    stored_filename,
-    validate_image_file,
-)
+from app.image_utils import validate_image_file
+from app.images import add_image
 from app.models import Item
 from app.models.image import Image
 from app.routers.dependencies import get_user_item
 from app.schemas.image import ImageRead, ImageUpdate
-from app.storage import delete_file, upload_file
+from app.storage import delete_file
 
 router = APIRouter(prefix="/items/{item_id}/images", tags=["item-images"])
 
@@ -35,44 +31,8 @@ async def upload_item_image(
     session: AsyncSession = Depends(get_async_session),
 ):
     """Upload an image for an item."""
-    # Validate file
     data = await validate_image_file(file)
-
-    # Check image count limit
-    stmt = select(Image).where(Image.item_id == item.id)
-    result = await session.execute(stmt)
-    existing = result.scalars().all()
-    if len(existing) >= MAX_ITEM_IMAGES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Maximum of {MAX_ITEM_IMAGES} images per item",
-        )
-
-    # Determine position (append to end)
-    position = max((img.position for img in existing), default=-1) + 1
-
-    processed = await process_image(data)
-
-    # Upload to object storage
-    image_id = str(uuid4())
-    storage_key = f"items/{item.id}/{image_id}{processed.extension}"
-    url = await upload_file(processed.data, storage_key, processed.content_type)
-
-    # Create DB record
-    image = Image(
-        id=image_id,
-        user_id=item.user_id,
-        item_id=item.id,
-        filename=stored_filename(file.filename, processed),
-        storage_key=storage_key,
-        url=url,
-        content_type=processed.content_type,
-        size_bytes=len(processed.data),
-        position=position,
-        width=processed.width,
-        height=processed.height,
-    )
-    session.add(image)
+    image = await add_image(session, data, user_id=item.user_id, item=item, filename=file.filename)
     await session.commit()
     await session.refresh(image)
     return image

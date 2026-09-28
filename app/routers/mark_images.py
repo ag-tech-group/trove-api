@@ -1,4 +1,4 @@
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import select
@@ -6,17 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import current_active_user
 from app.database import get_async_session
-from app.image_utils import (
-    MAX_MARK_IMAGES,
-    process_image,
-    stored_filename,
-    validate_image_file,
-)
+from app.image_utils import validate_image_file
+from app.images import add_image
 from app.models import Item, User
 from app.models.image import Image
 from app.models.mark import Mark
 from app.schemas.image import ImageRead, ImageUpdate
-from app.storage import delete_file, upload_file
+from app.storage import delete_file
 
 router = APIRouter(prefix="/items/{item_id}/marks/{mark_id}/images", tags=["mark-images"])
 
@@ -69,53 +65,12 @@ async def list_mark_images(
 async def upload_mark_image(
     file: UploadFile,
     mark: Mark = Depends(_get_user_mark),
+    user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Upload an image for a mark."""
-    # Validate file
     data = await validate_image_file(file)
-
-    # Check image count limit
-    stmt = select(Image).where(Image.mark_id == mark.id)
-    result = await session.execute(stmt)
-    existing = result.scalars().all()
-    if len(existing) >= MAX_MARK_IMAGES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Maximum of {MAX_MARK_IMAGES} images per mark",
-        )
-
-    # Determine position (append to end)
-    position = max((img.position for img in existing), default=-1) + 1
-
-    processed = await process_image(data)
-
-    # Upload to object storage
-    image_id = str(uuid4())
-    storage_key = f"marks/{mark.id}/{image_id}{processed.extension}"
-
-    # Get user_id from the parent item
-    stmt = select(Item.user_id).where(Item.id == mark.item_id)
-    result = await session.execute(stmt)
-    user_id = result.scalar_one()
-
-    url = await upload_file(processed.data, storage_key, processed.content_type)
-
-    # Create DB record
-    image = Image(
-        id=image_id,
-        user_id=user_id,
-        mark_id=mark.id,
-        filename=stored_filename(file.filename, processed),
-        storage_key=storage_key,
-        url=url,
-        content_type=processed.content_type,
-        size_bytes=len(processed.data),
-        position=position,
-        width=processed.width,
-        height=processed.height,
-    )
-    session.add(image)
+    image = await add_image(session, data, user_id=str(user.id), mark=mark, filename=file.filename)
     await session.commit()
     await session.refresh(image)
     return image

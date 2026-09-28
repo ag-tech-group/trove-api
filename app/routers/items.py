@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import current_active_user
 from app.database import get_async_session
+from app.images import owned_storage_keys
 from app.models import Collection, Item, Tag, User
 from app.schemas.item import ItemCreate, ItemRead, ItemUpdate
 from app.storage import delete_files
@@ -239,8 +240,9 @@ async def delete_item(
             detail="Item not found",
         )
 
-    # Collect storage keys before deletion for best-effort object storage cleanup
-    storage_keys = [img.storage_key for img in item.images]
+    # Collected before deletion, marks' images included: the cascade removes their
+    # rows, and without this their objects would stay in storage, publicly readable.
+    storage_keys = owned_storage_keys(item)
 
     await session.delete(item)
     await session.commit()
